@@ -21,11 +21,20 @@ sys.path.insert(0, ROOT_DIR)
 
 import market as mk   # noqa: E402
 import analysis as an  # noqa: E402
+import github_sync   # noqa: E402
 
 HOLDINGS_FILE = os.path.join(ROOT_DIR, "holdings.csv")
 WATCH_FILE = os.path.join(ROOT_DIR, "watchlist.csv")
 HISTORY_FILE = os.path.join(ROOT_DIR, "history.csv")
 CONFIG_FILE = os.path.join(ROOT_DIR, "config.json")
+
+# Render 這類免費方案重啟後磁碟是全新的，開機時先把 GitHub 上最新的資料拉回來
+# （本機開發沒設定 GITHUB_TOKEN 就完全不會發生，行為跟以前一樣）
+for _repo_path, _local_path in [
+    ("holdings.csv", HOLDINGS_FILE), ("watchlist.csv", WATCH_FILE),
+    ("history.csv", HISTORY_FILE), ("config.json", CONFIG_FILE),
+]:
+    github_sync.pull_file(_repo_path, _local_path)
 
 HOLD_COLS = ["symbol", "shares", "avg_cost", "stop_price", "note"]
 WATCH_COLS = ["symbol", "target_buy", "note"]
@@ -71,6 +80,7 @@ def load_holdings():
 
 def save_holdings(df):
     df[HOLD_COLS].to_csv(HOLDINGS_FILE, index=False, encoding="utf-8-sig")
+    github_sync.push_file(HOLDINGS_FILE, "holdings.csv", "更新持股 holdings.csv")
 
 
 def load_watch():
@@ -79,6 +89,7 @@ def load_watch():
 
 def save_watch(df):
     df[WATCH_COLS].to_csv(WATCH_FILE, index=False, encoding="utf-8-sig")
+    github_sync.push_file(WATCH_FILE, "watchlist.csv", "更新追蹤清單 watchlist.csv")
 
 
 def load_history():
@@ -101,6 +112,7 @@ def append_history(rec):
     h = (pd.concat([h, pd.DataFrame([rec])], ignore_index=True)
          if not h.empty else pd.DataFrame([rec]))
     h.to_csv(HISTORY_FILE, index=False, encoding="utf-8-sig")
+    github_sync.push_file(HISTORY_FILE, "history.csv", "新增交易紀錄 history.csv")
 
 
 def load_config():
@@ -114,6 +126,7 @@ def load_config():
 
 def save_config(cfg):
     json.dump(cfg, open(CONFIG_FILE, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+    github_sync.push_file(CONFIG_FILE, "config.json", "更新 config.json")
 
 
 def enrich_holdings(hold):
