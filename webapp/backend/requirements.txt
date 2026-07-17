@@ -1,0 +1,8 @@
+# 這幾個是後端框架本身需要的
+fastapi
+uvicorn[standard]
+pydantic
+
+# 其餘（pandas / yfinance / streamlit / plotly...）沿用專案根目錄的 requirements.txt，
+# 因為後端直接 import 那邊的 market.py / analysis.py：
+# pip install -r requirements.txt -r ../../requirements.txt

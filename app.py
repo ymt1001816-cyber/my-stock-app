@@ -21,6 +21,7 @@ from datetime import date
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 import market as mk
 import analysis as an
@@ -177,7 +178,8 @@ hr{border-color:var(--line)!important}
 .bottomnav{position:fixed;bottom:0;left:0;right:0;z-index:9999;display:flex;
   justify-content:space-around;align-items:center;gap:2px;
   background:rgba(255,255,255,.86);backdrop-filter:blur(14px) saturate(1.4);
-  border-top:1px solid var(--line);padding:7px 8px calc(9px + env(safe-area-inset-bottom));
+  border-top:1px solid var(--line);
+  padding:7px 54px 7px 8px;padding-bottom:calc(9px + env(safe-area-inset-bottom));
   box-shadow:0 -8px 26px rgba(30,28,22,.10)}
 .navlink{text-decoration:none!important;text-align:center;flex:1;padding:9px 2px;
   border-radius:14px;transition:background .2s,transform .2s var(--bounce)}
@@ -497,15 +499,17 @@ def apple_chart(hist):
         x=close.index, y=close, mode="lines",
         line=dict(color=color, width=2),
         fill="tozeroy", fillcolor=fillc,
-        hovertemplate="%{y:.2f}<extra></extra>"))
+        hovertemplate="%{x|%Y-%m-%d}<br>%{y:.2f}<extra></extra>"))
     lo, hi = float(close.min()), float(close.max())
     pad = (hi - lo) * 0.12 or 1
     fig.update_layout(height=260, margin=dict(l=0, r=0, t=6, b=0),
-                      showlegend=False, plot_bgcolor="white", paper_bgcolor="white")
-    fig.update_xaxes(showgrid=False)
+                      showlegend=False, plot_bgcolor="white", paper_bgcolor="white",
+                      dragmode=False, hovermode="x unified")
+    fig.update_xaxes(showgrid=False, fixedrange=True)
     fig.update_yaxes(showgrid=True, gridcolor="#eef1f4", side="right",
-                     range=[lo - pad, hi + pad])
-    st.plotly_chart(fig, use_container_width=True)
+                     range=[lo - pad, hi + pad], fixedrange=True)
+    st.plotly_chart(fig, use_container_width=True,
+                    config={"displayModeBar": False, "scrollZoom": False, "doubleClick": False})
 
 
 def enrich_holdings(hold):
@@ -564,6 +568,41 @@ _nav_html = "".join(
     f"<div class='ic'>{ic}</div></a>"
     for k, ic, lab, _ in NAV)
 st.markdown(f"<div class='bottomnav'>{_nav_html}</div>", unsafe_allow_html=True)
+
+# 手機左右滑動切換分頁（點底部圖示以外的另一種換頁方式，
+# 避免最右邊的圖示被 Streamlit Cloud 右下角徽章擋住點不到）
+_nav_order = [k for k, *_ in NAV]
+components.html(f"""
+<script>
+(function() {{
+  const doc = window.parent.document;
+  if (doc.__navSwipeBound) return;
+  doc.__navSwipeBound = true;
+  const order = {_nav_order!r};
+  let sx = 0, sy = 0, active = true;
+  doc.addEventListener('touchstart', function(e) {{
+    const t = e.touches[0];
+    sx = t.clientX; sy = t.clientY;
+    active = !e.target.closest('.js-plotly-plot, [data-testid="stPlotlyChart"]');
+  }}, {{passive: true}});
+  doc.addEventListener('touchend', function(e) {{
+    if (!active) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - sx, dy = t.clientY - sy;
+    if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    const params = new URLSearchParams(doc.location.search);
+    let i = order.indexOf(params.get('nav') || 'home');
+    if (i < 0) i = 0;
+    const next = dx < 0 ? i + 1 : i - 1;
+    if (next < 0 || next >= order.length) return;
+    // 直接改 location.href 會被這個元件 iframe 的 sandbox 擋掉（沒有
+    // allow-top-navigation），改成點擊畫面上真正存在的分頁連結來換頁。
+    const link = doc.querySelector("a.navlink[href='?nav=" + order[next] + "']");
+    if (link) link.click();
+  }}, {{passive: true}});
+}})();
+</script>
+""", height=0)
 
 usdtwd = RATE            # 相容舊變數名（賣出換算等）
 
@@ -779,25 +818,30 @@ def render_trend(hold):
                                    line=dict(color=line_c, width=2.5),
                                    fill="tozeroy",
                                    fillcolor="rgba(74,154,108,0.10)" if up
-                                   else "rgba(194,102,97,0.10)"))
+                                   else "rgba(194,102,97,0.10)",
+                                   hovertemplate="%{x|%Y-%m-%d}<br>%{y:,.0f}<extra></extra>"))
         lo, hi = float(s.min()), float(s.max())
         pad = (hi - lo) * 0.12 or 1
         fig.update_layout(height=280, margin=dict(l=0, r=0, t=6, b=0), showlegend=False,
-                          plot_bgcolor="white", paper_bgcolor="white")
-        fig.update_xaxes(showgrid=False)
+                          plot_bgcolor="white", paper_bgcolor="white",
+                          dragmode=False, hovermode="x unified")
+        fig.update_xaxes(showgrid=False, fixedrange=True)
         fig.update_yaxes(showgrid=True, gridcolor="#eef1f4", side="right",
-                         range=[lo - pad, hi + pad])
+                         range=[lo - pad, hi + pad], fixedrange=True)
         sec("每期市值走勢")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True,
+                        config={"displayModeBar": False, "scrollZoom": False, "doubleClick": False})
 
         sec(f"每{gran}變化")
         colors = [GREEN if v >= 0 else RED for v in change.values]
-        bar = go.Figure(go.Bar(x=change.index, y=change.values, marker_color=colors))
+        bar = go.Figure(go.Bar(x=change.index, y=change.values, marker_color=colors,
+                               hovertemplate="%{x|%Y-%m-%d}<br>%{y:,.0f}<extra></extra>"))
         bar.update_layout(height=220, margin=dict(l=0, r=0, t=6, b=0),
-                          plot_bgcolor="white", paper_bgcolor="white")
-        bar.update_xaxes(showgrid=False)
-        bar.update_yaxes(showgrid=True, gridcolor="#eef1f4", side="right")
-        st.plotly_chart(bar, use_container_width=True)
+                          plot_bgcolor="white", paper_bgcolor="white", dragmode=False)
+        bar.update_xaxes(showgrid=False, fixedrange=True)
+        bar.update_yaxes(showgrid=True, gridcolor="#eef1f4", side="right", fixedrange=True)
+        st.plotly_chart(bar, use_container_width=True,
+                        config={"displayModeBar": False, "scrollZoom": False, "doubleClick": False})
     else:
         st.line_chart(s)
     st.caption("※ 以目前持股股數 × 歷史股價回推，僅供參考；未計入期間買賣變動。")
