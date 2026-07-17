@@ -1,6 +1,6 @@
 # 不要上傳到 GitHub 的東西
-# config.json：含現金餘額、幣別偏好、簡報快取，不是公開資料
-config.json
+# config.json 現在故意追蹤在 git 裡：Render 用它來同步現金餘額/幣別偏好，
+# 讓免費方案重啟後資料不會消失（repo 是 private，可以放心）
 __pycache__/
 *.pyc
 reports/
