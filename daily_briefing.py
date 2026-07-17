@@ -4,6 +4,7 @@
 並存一份到 reports/。由 Windows 工作排程每天早上自動執行。
 """
 import os
+import sys
 import json
 import warnings
 from datetime import date
@@ -18,6 +19,11 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 CFG = os.path.join(BASE, "config.json")
 HOLD = os.path.join(BASE, "holdings.csv")
 REPORTS = os.path.join(BASE, "reports")
+
+# 排程直接寫本機 config.json，不會經過新版網頁的後端，所以這裡額外呼叫一次
+# github_sync，讓排程產生的簡報也能同步回 GitHub → 手機上的新版 App 看得到。
+sys.path.insert(0, os.path.join(BASE, "webapp", "backend"))
+import github_sync  # noqa: E402
 
 
 def log(msg):
@@ -69,6 +75,7 @@ def main():
     cfg["last_briefing"] = text
     cfg["last_briefing_at"] = str(date.today())
     json.dump(cfg, open(CFG, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+    github_sync.push_file(CFG, "config.json", "每日排程更新簡報 config.json")
     os.makedirs(REPORTS, exist_ok=True)
     open(os.path.join(REPORTS, f"briefing_{date.today()}.txt"), "w",
          encoding="utf-8").write(text)
