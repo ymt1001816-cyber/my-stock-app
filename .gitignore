@@ -1,0 +1,9 @@
+# 不要上傳到 GitHub 的東西
+# config.json：含現金餘額、幣別偏好、簡報快取，不是公開資料
+config.json
+__pycache__/
+*.pyc
+reports/
+.DS_Store
+boot.log
+streamlit_test.log
