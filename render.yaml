@@ -12,3 +12,12 @@ services:
         sync: false
       - key: GITHUB_REPO
         value: ymt1001816-cyber/my-stock-app
+
+  # 定時打 my-stock-webapp 自己的網址，避免免費方案閒置太久被 Render 關掉睡著
+  - type: cron
+    name: keep-alive-ping
+    runtime: python
+    plan: free
+    schedule: "*/10 * * * *"
+    buildCommand: "pip install requests"
+    startCommand: "python -c \"import requests; requests.get('https://my-stock-webapp.onrender.com/api/config', timeout=30)\""
