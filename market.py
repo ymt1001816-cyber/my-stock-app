@@ -13,6 +13,19 @@ try:
 except Exception:
     HAS_YF = False
 
+# Yahoo Finance 有時候對雲端主機（Render 這類）的 IP 回應得很慢甚至掛住不回應，
+# 一律用這個 pool 包一層時間上限，避免單一卡住的請求拖垮整個 App（其他請求
+# 會被卡在同一個執行緒池裡排隊等）。
+_NET_POOL = ThreadPoolExecutor(max_workers=32)
+
+
+def _bounded(fn, *args, timeout=6, default=None, **kwargs):
+    fut = _NET_POOL.submit(fn, *args, **kwargs)
+    try:
+        return fut.result(timeout=timeout)
+    except Exception:
+        return default
+
 # 產業中文對照
 SECTOR_ZH = {
     "Technology": "科技",
@@ -132,10 +145,22 @@ def get_quote(symbol: str) -> dict:
             except Exception:
                 return {}
 
-        # 三個 yfinance 呼叫互相獨立，平行抓取加快載入
+        # 三個 yfinance 呼叫互相獨立，平行抓取加快載入；每個都設時間上限，
+        # 免得 Yahoo 那邊卡住不回應時，這個 request 也跟著卡住不放。
         with ThreadPoolExecutor(max_workers=3) as ex:
             fi_f, info_f, cal_f = ex.submit(_fi), ex.submit(_info), ex.submit(_cal)
-            fi, info, cal = fi_f.result(), info_f.result(), cal_f.result()
+            try:
+                fi = fi_f.result(timeout=6)
+            except Exception:
+                fi = {}
+            try:
+                info = info_f.result(timeout=6)
+            except Exception:
+                info = {}
+            try:
+                cal = cal_f.result(timeout=6)
+            except Exception:
+                cal = {}
 
         try:
             q["price"] = float(fi.get("lastPrice") or 0) or q["price"]
@@ -201,7 +226,7 @@ def get_light(symbol: str) -> dict:
     if not HAS_YF:
         return out
     try:
-        fi = yf.Ticker(symbol).fast_info
+        fi = _bounded(lambda: dict(yf.Ticker(symbol).fast_info), default={})
         out["price"] = float(fi.get("lastPrice") or 0)
         out["prev_close"] = float(fi.get("previousClose") or 0)
         out["ma50"] = float(fi.get("fiftyDayAverage") or 0)
@@ -224,7 +249,7 @@ def get_indices() -> list:
     for sym, name in [("^GSPC", "S&P 500"), ("^IXIC", "那斯達克"),
                       ("^DJI", "道瓊"), ("^SOX", "費城半導體")]:
         try:
-            fi = yf.Ticker(sym).fast_info
+            fi = _bounded(lambda s=sym: dict(yf.Ticker(s).fast_info), default={})
             p = float(fi.get("lastPrice") or 0)
             pc = float(fi.get("previousClose") or 0)
             out.append({"name": name, "price": p,
@@ -263,11 +288,9 @@ def portfolio_value_series(holdings_tuple, period: str, interval: str) -> pd.Ser
 def get_chart(symbol: str, period: str = "6mo", interval: str = "1d") -> pd.DataFrame:
     if not HAS_YF:
         return pd.DataFrame()
-    try:
-        h = yf.Ticker(symbol).history(period=period, interval=interval)
-        return h if h is not None else pd.DataFrame()
-    except Exception:
-        return pd.DataFrame()
+    h = _bounded(lambda: yf.Ticker(symbol).history(period=period, interval=interval),
+                timeout=8, default=None)
+    return h if h is not None else pd.DataFrame()
 
 
 @st.cache_data(ttl=86400, show_spinner=False)
@@ -294,7 +317,8 @@ def get_news(symbol: str, limit: int = 4) -> list:
         return []
     items = []
     try:
-        for n in (yf.Ticker(symbol).news or [])[:limit]:
+        news = _bounded(lambda: yf.Ticker(symbol).news, default=[]) or []
+        for n in news[:limit]:
             c = n.get("content", n)
             title = c.get("title") or n.get("title")
             if not title:
@@ -323,8 +347,8 @@ def get_usdtwd() -> float:
     if not HAS_YF:
         return 0.0
     try:
-        h = yf.Ticker("TWD=X").history(period="5d")
-        if not h.empty:
+        h = _bounded(lambda: yf.Ticker("TWD=X").history(period="5d"), default=None)
+        if h is not None and not h.empty:
             return float(h["Close"].iloc[-1])
     except Exception:
         pass
