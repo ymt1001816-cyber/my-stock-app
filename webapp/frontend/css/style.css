@@ -19,7 +19,8 @@ body{margin:0;background:
   font-family:-apple-system,'Segoe UI','PingFang TC','Microsoft JhengHei',sans-serif;
   font-size:15px;color:var(--ink)}
 h1,h2,h3,.nm,.wb{font-family:'Manrope',-apple-system,'Segoe UI','PingFang TC','Microsoft JhengHei',sans-serif}
-#app{max-width:1080px;margin:0 auto;padding:1.8rem 1rem 3rem}
+#app{max-width:1080px;margin:0 auto;
+  padding:calc(1.8rem + env(safe-area-inset-top)) 1rem 3rem}
 h1{font-size:1.68rem;font-weight:800;letter-spacing:.1px;margin:0}
 hr{border:none;border-top:1px solid var(--line)}
 a{color:inherit}
@@ -172,7 +173,7 @@ button{font-family:inherit;cursor:pointer}
   justify-content:space-around;align-items:center;gap:2px;
   background:rgba(255,255,255,.86);backdrop-filter:blur(14px) saturate(1.4);
   border-top:1px solid var(--line);
-  padding:7px 54px 7px 8px;padding-bottom:calc(9px + env(safe-area-inset-bottom));
+  padding:7px 8px;padding-bottom:calc(9px + env(safe-area-inset-bottom));
   box-shadow:0 -8px 26px rgba(30,28,22,.10)}
 .navlink{text-decoration:none;text-align:center;flex:1;padding:9px 2px;
   border-radius:14px;transition:background .2s,transform .2s var(--bounce);background:none;border:none}

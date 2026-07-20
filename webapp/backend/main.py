@@ -133,7 +133,9 @@ def enrich_holdings(hold):
     recs = hold.to_dict("records")
     if not recs:
         return []
-    with ThreadPoolExecutor(max_workers=min(10, len(recs))) as ex:
+    # 平行度不要開太大：一次打太多次 Yahoo Finance 反而容易被暫時擋掉，
+    # 一堆股票的報價就會變成 0。
+    with ThreadPoolExecutor(max_workers=min(4, len(recs))) as ex:
         quotes = list(ex.map(lambda r: mk.get_light(r["symbol"]), recs))
     rows = []
     for r, q in zip(recs, quotes):

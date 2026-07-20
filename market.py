@@ -19,12 +19,16 @@ except Exception:
 _NET_POOL = ThreadPoolExecutor(max_workers=32)
 
 
-def _bounded(fn, *args, timeout=6, default=None, **kwargs):
-    fut = _NET_POOL.submit(fn, *args, **kwargs)
-    try:
-        return fut.result(timeout=timeout)
-    except Exception:
-        return default
+def _bounded(fn, *args, timeout=6, default=None, retries=1, **kwargs):
+    """有時只是同時打太多次被 Yahoo 暫時擋一下，重試一次通常就過了，
+    才不會沒事就整檔股票變成 0。"""
+    for attempt in range(retries + 1):
+        fut = _NET_POOL.submit(fn, *args, **kwargs)
+        try:
+            return fut.result(timeout=timeout)
+        except Exception:
+            if attempt == retries:
+                return default
 
 # 產業中文對照
 SECTOR_ZH = {
