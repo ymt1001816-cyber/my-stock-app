@@ -13,6 +13,7 @@ import pandas as pd
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 # 專案根目錄（webapp/backend/ 的上上層），讓我們可以直接 import 既有的 market.py / analysis.py
@@ -672,6 +673,33 @@ def get_trend(gran: str = "日"):
         "series": [{"t": str(t), "v": float(v)} for t, v in s.items()],
         "changes": [{"t": str(t), "v": float(v)} for t, v in change.items()],
     }
+
+
+def _asset_version(*names):
+    """用檔案的修改時間當版本號，加在 <script>/<link> 網址後面。
+    這樣每次部署改了 js/css，瀏覽器（包括手機）才會抓新的，
+    不會因為快取繼續執行舊版程式碼。"""
+    mtimes = []
+    for name in names:
+        try:
+            mtimes.append(os.path.getmtime(os.path.join(FRONTEND_DIR, name)))
+        except OSError:
+            pass
+    return int(max(mtimes)) if mtimes else 0
+
+
+@app.get("/", response_class=HTMLResponse)
+def index():
+    with open(os.path.join(FRONTEND_DIR, "index.html"), encoding="utf-8") as f:
+        html = f.read()
+    v_css = _asset_version("css/style.css")
+    v_chart = _asset_version("js/chart.js")
+    v_app = _asset_version("js/app.js")
+    html = (html
+            .replace('href="css/style.css"', f'href="css/style.css?v={v_css}"')
+            .replace('src="js/chart.js"', f'src="js/chart.js?v={v_chart}"')
+            .replace('src="js/app.js"', f'src="js/app.js?v={v_app}"'))
+    return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
 
 
 # 前端靜態檔案（放在 API 路由後面掛載，避免蓋掉 /api/*）

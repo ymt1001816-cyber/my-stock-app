@@ -409,7 +409,7 @@ async function renderDetail(symbol) {
   const app = document.getElementById("app");
   app.innerHTML = `<button class="btn-back" id="backBtn">←</button>
     <div id="detailBody"><div class="loading">載入中…</div></div>` + renderBottomNav("hold");
-  document.getElementById("backBtn").addEventListener("click", () => { location.href = "?nav=hold"; });
+  document.getElementById("backBtn").addEventListener("click", () => navigateTo("?nav=hold"));
 
   const d = await api(`/holdings/${encodeURIComponent(symbol)}`);
   detailCache = d;
@@ -813,7 +813,7 @@ async function renderTrend() {
     <h1>📈 資產走勢</h1>
     <div id="trendBody"><div class="loading">計算歷史市值中…（約 10-20 秒）</div></div>` +
     renderBottomNav("home");
-  document.getElementById("backBtn").addEventListener("click", () => { location.href = "?nav=home"; });
+  document.getElementById("backBtn").addEventListener("click", () => navigateTo("?nav=home"));
 
   await loadTrendBody();
 }
@@ -870,7 +870,7 @@ async function renderCash() {
     </div>
     <button type="button" class="btn-submit" data-seg-btn="save-cash" data-value="1">儲存</button>
     <div id="cashMsg"></div>` + renderBottomNav("home");
-  document.getElementById("backBtn").addEventListener("click", () => { location.href = "?nav=home"; });
+  document.getElementById("backBtn").addEventListener("click", () => navigateTo("?nav=home"));
 }
 
 onSeg("save-cash", async () => {
@@ -894,10 +894,24 @@ function renderPlaceholder(key, title) {
 // ------------------------------------------------------------------
 // 路由
 // ------------------------------------------------------------------
+let configLoaded = false;
+
+// 换頁不用整頁重新載入：只換網址列＋重繪內容，省掉重新下載/解析整份 HTML/CSS/JS
+// 跟每次都重抓一次 /api/config 的開銷，點哪裡都會快很多。
+function navigateTo(url) {
+  history.pushState(null, "", url);
+  render();
+}
+
+window.addEventListener("popstate", render);
+
 async function render() {
   const nav = qs("nav", "home");
-  const cfg = await api("/config");
-  state.cur = cfg.cur; state.rate = cfg.rate; state.cash = cfg.cash_usd;
+  if (!configLoaded) {
+    const cfg = await api("/config");
+    state.cur = cfg.cur; state.rate = cfg.rate; state.cash = cfg.cash_usd;
+    configLoaded = true;
+  }
 
   if (qs("trend", null)) return renderTrend();
   if (qs("cash", null)) return renderCash();
@@ -930,9 +944,21 @@ function bindSwipeNav() {
     if (i < 0) i = 0;
     const next = dx < 0 ? i + 1 : i - 1;
     if (next < 0 || next >= order.length) return;
-    location.href = `?nav=${order[next]}`;
+    navigateTo(`?nav=${order[next]}`);
   }, { passive: true });
 }
+
+// 攔截站內連結（href 以 "?" 開頭的都是我們自己的分頁/詳細頁連結），
+// 改用 SPA 換頁而不是整頁重新載入；外部連結（新聞等）不受影響照常開新分頁。
+document.addEventListener("click", e => {
+  const a = e.target.closest("a");
+  if (!a) return;
+  const href = a.getAttribute("href");
+  if (href && href.startsWith("?")) {
+    e.preventDefault();
+    navigateTo(href);
+  }
+});
 
 bindSwipeNav();
 render();
