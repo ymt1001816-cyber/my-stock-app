@@ -184,10 +184,9 @@ def get_quote(symbol: str) -> dict:
             q["sector"] = info.get("sector") or ""
             q["industry"] = info.get("industry") or ""
             q["market_state"] = info.get("marketState") or ""
-            if info.get("regularMarketPrice"):
-                q["price"] = float(info["regularMarketPrice"])
-            if info.get("regularMarketPreviousClose"):
-                q["prev_close"] = float(info["regularMarketPreviousClose"])
+            # 現價/昨收一律用上面 fast_info 的 lastPrice/previousClose，跟持股清單
+            # （get_light）同一個資料來源，不要在這裡用 info 的 regularMarketPrice
+            # 覆蓋掉，不然清單跟個股詳細頁的損益金額會兜不起來。
             q["pre_price"] = info.get("preMarketPrice")
             q["pre_pct"] = info.get("preMarketChangePercent")
             q["post_price"] = info.get("postMarketPrice")
@@ -221,7 +220,7 @@ def get_quote(symbol: str) -> dict:
     return q
 
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=120, show_spinner=False)  # 跟 get_quote 同一個快取時間，清單跟詳細頁才不會分別顯示不同時間點的價格
 def get_light(symbol: str) -> dict:
     """輕量報價：只用 fast_info（快很多），給總覽/卡片用。"""
     out = {"symbol": symbol, "name": symbol, "sector": "", "price": 0.0,

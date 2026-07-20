@@ -503,9 +503,12 @@ def get_watchlist():
     watch = load_watch()
     if watch.empty:
         return {"empty": True, "rows": []}
+    recs = watch.to_dict("records")
+    # 平行抓（跟持股清單同一套節流設定），不然一次看的股票一多，一支一支排隊抓會很慢
+    with ThreadPoolExecutor(max_workers=min(4, len(recs))) as ex:
+        quotes = list(ex.map(lambda w: mk.get_light(w["symbol"]), recs))
     rows = []
-    for _, w in watch.iterrows():
-        q = mk.get_light(w["symbol"])
+    for w, q in zip(recs, quotes):
         tb = w.get("target_buy")
         tb = float(tb) if pd.notna(tb) else None
         v = an.analyze_watch(q, tb, None)
