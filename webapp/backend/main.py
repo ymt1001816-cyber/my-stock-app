@@ -276,6 +276,7 @@ def get_holdings(sort: str = "mv"):
             "price_usd": r["price"],
             "day_pct": r["day_pct"], "market_value_usd": r["market_value"],
             "weight_pct": r["market_value"] / total_mv * 100,
+            "pl_usd": r["pl"], "pl_pct": r["pl_pct"],
             "emoji": v["emoji"], "label": v["label"],
         })
     if sort == "symbol":

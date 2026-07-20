@@ -196,9 +196,16 @@ async function loadSymbols() {
 }
 
 function stockRowHtml(r) {
-  const dayColor = colorOf(r.day_pct);
   const sub = r._sub !== undefined ? r._sub :
     `${r.shares % 1 === 0 ? r.shares : r.shares.toFixed(5)} 股 · 佔比 ${r.weight_pct.toFixed(1)}%`;
+  // 持股列表看的是「賺賠多少」，不是當天股價；追蹤清單沒有成本，才顯示現價/當日漲跌。
+  const hasPl = r.pl_usd !== undefined;
+  const plColor = colorOf(hasPl ? r.pl_usd : r.day_pct);
+  const right = hasPl
+    ? `<div class="nm" style="color:${plColor}">${mh(r.pl_usd, true)}</div>
+       <div class="chip" style="background:${plColor}17;color:${plColor}">${pctStr(r.pl_pct)}</div>`
+    : `<div class="nm">${usdOnly(r.price_usd)}</div>
+       <div class="chip" style="background:${plColor}17;color:${plColor}">${pctStr(r.day_pct)}</div>`;
   return `<a class="hlink" href="?nav=hold&sym=${encodeURIComponent(r.symbol)}">
     <div class="hitem">
       <div class="hitem-left">
@@ -209,8 +216,7 @@ function stockRowHtml(r) {
         </div>
       </div>
       <div class="hitem-right">
-        <div class="nm">${usdOnly(r.price_usd)}</div>
-        <div class="chip" style="background:${dayColor}17;color:${dayColor}">${pctStr(r.day_pct)}</div>
+        ${right}
       </div>
     </div>
   </a>`;
@@ -372,7 +378,7 @@ function rerenderHoldBody() {
     { key: "mv", label: "市值" }, { key: "symbol", label: "代號 A→Z" }, { key: "day_pct", label: "單日漲跌" },
   ], holdSort) +
   `<div style="display:flex;justify-content:space-between;color:#8a8983;font-size:.76rem;padding:0 4px 6px">
-    <span>持倉 · ${rows.length} 檔</span><span>現價　·　單日漲跌</span></div>` +
+    <span>持倉 · ${rows.length} 檔</span><span>損益金額　·　報酬率</span></div>` +
   rows.map(stockRowHtml).join("") +
   `<p class="hint">👆 點任一列看個股詳細（走勢圖、盤前盤後、財報、建議）</p>` + renderFooter();
   const panel = document.getElementById("addTxPanel");
