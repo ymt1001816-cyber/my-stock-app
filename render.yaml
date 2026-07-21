@@ -13,13 +13,9 @@ services:
       - key: GITHUB_REPO
         value: ymt1001816-cyber/my-stock-app
 
-  # 定時打 my-stock-webapp 自己的網址：一來避免免費方案閒置太久被 Render 關掉睡著，
-  # 二來順便把持股/追蹤清單的報價快取「預先跑熱」（快取時間也設 10 分鐘，跟這個排程
-  # 週期一致），這樣你實際打開 App 時幾乎都是直接吃現成快取，不用等 Yahoo Finance。
-  - type: cron
-    name: keep-alive-ping
-    runtime: python
-    plan: free
-    schedule: "*/10 * * * *"
-    buildCommand: "pip install requests"
-    startCommand: "python -c \"import requests; base = 'https://my-stock-webapp.onrender.com'; [requests.get(base + p, timeout=60) for p in ('/api/holdings', '/api/watchlist')]\""
+# Render 的 Cron Job 免費方案不支援（只有 Web Service 有免費方案），所以「定時打網址
+# 預先跑熱快取／避免睡著」改用外部免費排程服務（例如 cron-job.org）打下面兩個網址，
+# 不是用 Render 自己的 Cron Job：
+#   https://my-stock-webapp.onrender.com/api/holdings
+#   https://my-stock-webapp.onrender.com/api/watchlist
+# 排程頻率設 10 分鐘一次，跟 market.py 裡報價快取的 600 秒（10 分鐘）一致。
