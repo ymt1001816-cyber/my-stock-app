@@ -19,16 +19,20 @@ except Exception:
 _NET_POOL = ThreadPoolExecutor(max_workers=32)
 
 
-def _bounded(fn, *args, timeout=6, default=None, retries=1, **kwargs):
-    """有時只是同時打太多次被 Yahoo 暫時擋一下，重試一次通常就過了，
-    才不會沒事就整檔股票變成 0。"""
+def _bounded(fn, *args, timeout=6, retries=1, **kwargs):
+    """跟 Yahoo 要資料：有時只是同時打太多次被暫時擋一下，重試一次通常就過了。
+    兩次都失敗就直接 raise（不要回傳假的預設值！）——凡是包這層的函式都設計成
+    「失敗就整個 raise 出去、不快取」，這樣下次呼叫才會真的重新問一次，
+    不會卡在同一個壞結果裡一路卡到快取過期（之前這樣讓 VOO 這種正常股票
+    顯示 -100% 損益，卡了整整 10 分鐘的快取時間）。"""
+    last_exc = RuntimeError("_bounded: no attempt made")
     for attempt in range(retries + 1):
         fut = _NET_POOL.submit(fn, *args, **kwargs)
         try:
             return fut.result(timeout=timeout)
-        except Exception:
-            if attempt == retries:
-                return default
+        except Exception as e:
+            last_exc = e
+    raise last_exc
 
 # 產業中文對照
 SECTOR_ZH = {
@@ -113,10 +117,8 @@ def _ts_to_date(ts):
         return None
 
 
-@st.cache_data(ttl=600, show_spinner=False)
-def get_quote(symbol: str) -> dict:
-    """單一股票的即時報價 + 基本面 + 盤前盤後 + 分析師資料。"""
-    q = {
+def _empty_quote(symbol):
+    return {
         "symbol": symbol, "name": symbol, "sector": "", "industry": "",
         "currency": "USD", "market_state": "", "price": 0.0, "prev_close": 0.0,
         "change": 0.0, "change_pct": 0.0, "day_high": 0.0, "day_low": 0.0,
@@ -126,121 +128,140 @@ def get_quote(symbol: str) -> dict:
         "ex_div_date": None, "div_date": None, "earnings_date": None,
         "target_mean": None, "recommend": None, "ok": False,
     }
-    if not HAS_YF:
-        return q
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _get_quote_cached(symbol: str) -> dict:
+    q = _empty_quote(symbol)
+    t = yf.Ticker(symbol)
+
+    def _fi():
+        return dict(t.fast_info)
+
+    def _info():
+        try:
+            return t.info or {}
+        except Exception:
+            return {}
+
+    def _cal():
+        try:
+            return t.calendar or {}
+        except Exception:
+            return {}
+
+    # 三個 yfinance 呼叫互相獨立，平行抓取加快載入；每個都設時間上限，
+    # 免得 Yahoo 那邊卡住不回應時，這個 request 也跟著卡住不放。
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        fi_f, info_f, cal_f = ex.submit(_fi), ex.submit(_info), ex.submit(_cal)
+        # fast_info 是現價的關鍵資料，這裡故意不接 except：抓不到就讓例外整個
+        # 往外傳、不要快取這次結果，下次呼叫才會真的重新問一次，不然會把
+        # 「現價 0」快取起來卡 10 分鐘（曾經讓 VOO 這種正常股票顯示 -100%）。
+        fi = fi_f.result(timeout=6)
+        try:
+            info = info_f.result(timeout=6)
+        except Exception:
+            info = {}
+        try:
+            cal = cal_f.result(timeout=6)
+        except Exception:
+            cal = {}
+
+    if not fi.get("lastPrice"):
+        raise RuntimeError(f"empty fast_info for {symbol}")
+
+    q["price"] = float(fi.get("lastPrice") or 0)
+    q["prev_close"] = float(fi.get("previousClose") or 0)
+    q["day_high"] = float(fi.get("dayHigh") or 0)
+    q["day_low"] = float(fi.get("dayLow") or 0)
+    q["wk52_high"] = float(fi.get("yearHigh") or 0)
+    q["wk52_low"] = float(fi.get("yearLow") or 0)
+    q["ma50"] = float(fi.get("fiftyDayAverage") or 0)
+    q["ma200"] = float(fi.get("twoHundredDayAverage") or 0)
+    q["market_cap"] = fi.get("marketCap")
+    q["currency"] = fi.get("currency") or "USD"
+    if info:
+        q["name"] = info.get("shortName") or info.get("longName") or symbol
+        q["sector"] = info.get("sector") or ""
+        q["industry"] = info.get("industry") or ""
+        q["market_state"] = info.get("marketState") or ""
+        # 現價/昨收一律用上面 fast_info 的 lastPrice/previousClose，跟持股清單
+        # （get_light）同一個資料來源，不要在這裡用 info 的 regularMarketPrice
+        # 覆蓋掉，不然清單跟個股詳細頁的損益金額會兜不起來。
+        q["pre_price"] = info.get("preMarketPrice")
+        q["pre_pct"] = info.get("preMarketChangePercent")
+        q["post_price"] = info.get("postMarketPrice")
+        q["post_pct"] = info.get("postMarketChangePercent")
+        q["pe"] = info.get("trailingPE")
+        q["div_rate"] = info.get("dividendRate")
+        q["div_yield"] = info.get("dividendYield")
+        q["ex_div_date"] = _ts_to_date(info.get("exDividendDate"))
+        q["earnings_date"] = _ts_to_date(info.get("earningsTimestamp"))
+        q["target_mean"] = info.get("targetMeanPrice")
+        q["recommend"] = info.get("recommendationKey")
+    # 財報 / 除息日（calendar 較準）
     try:
-        t = yf.Ticker(symbol)
-
-        def _fi():
-            try:
-                return dict(t.fast_info)
-            except Exception:
-                return {}
-
-        def _info():
-            try:
-                return t.info or {}
-            except Exception:
-                return {}
-
-        def _cal():
-            try:
-                return t.calendar or {}
-            except Exception:
-                return {}
-
-        # 三個 yfinance 呼叫互相獨立，平行抓取加快載入；每個都設時間上限，
-        # 免得 Yahoo 那邊卡住不回應時，這個 request 也跟著卡住不放。
-        with ThreadPoolExecutor(max_workers=3) as ex:
-            fi_f, info_f, cal_f = ex.submit(_fi), ex.submit(_info), ex.submit(_cal)
-            try:
-                fi = fi_f.result(timeout=6)
-            except Exception:
-                fi = {}
-            try:
-                info = info_f.result(timeout=6)
-            except Exception:
-                info = {}
-            try:
-                cal = cal_f.result(timeout=6)
-            except Exception:
-                cal = {}
-
-        try:
-            q["price"] = float(fi.get("lastPrice") or 0) or q["price"]
-            q["prev_close"] = float(fi.get("previousClose") or 0)
-            q["day_high"] = float(fi.get("dayHigh") or 0)
-            q["day_low"] = float(fi.get("dayLow") or 0)
-            q["wk52_high"] = float(fi.get("yearHigh") or 0)
-            q["wk52_low"] = float(fi.get("yearLow") or 0)
-            q["ma50"] = float(fi.get("fiftyDayAverage") or 0)
-            q["ma200"] = float(fi.get("twoHundredDayAverage") or 0)
-            q["market_cap"] = fi.get("marketCap")
-            q["currency"] = fi.get("currency") or "USD"
-        except Exception:
-            pass
-        if info:
-            q["name"] = info.get("shortName") or info.get("longName") or symbol
-            q["sector"] = info.get("sector") or ""
-            q["industry"] = info.get("industry") or ""
-            q["market_state"] = info.get("marketState") or ""
-            # 現價/昨收一律用上面 fast_info 的 lastPrice/previousClose，跟持股清單
-            # （get_light）同一個資料來源，不要在這裡用 info 的 regularMarketPrice
-            # 覆蓋掉，不然清單跟個股詳細頁的損益金額會兜不起來。
-            q["pre_price"] = info.get("preMarketPrice")
-            q["pre_pct"] = info.get("preMarketChangePercent")
-            q["post_price"] = info.get("postMarketPrice")
-            q["post_pct"] = info.get("postMarketChangePercent")
-            q["pe"] = info.get("trailingPE")
-            q["div_rate"] = info.get("dividendRate")
-            q["div_yield"] = info.get("dividendYield")
-            q["ex_div_date"] = _ts_to_date(info.get("exDividendDate"))
-            q["earnings_date"] = _ts_to_date(info.get("earningsTimestamp"))
-            q["target_mean"] = info.get("targetMeanPrice")
-            q["recommend"] = info.get("recommendationKey")
-        # 財報 / 除息日（calendar 較準）
-        try:
-            ed = cal.get("Earnings Date")
-            if isinstance(ed, list) and ed:
-                q["earnings_date"] = ed[0]
-            elif ed:
-                q["earnings_date"] = ed
-            if cal.get("Ex-Dividend Date"):
-                q["ex_div_date"] = cal.get("Ex-Dividend Date")
-            if cal.get("Dividend Date"):
-                q["div_date"] = cal.get("Dividend Date")
-        except Exception:
-            pass
-        if q["prev_close"]:
-            q["change"] = q["price"] - q["prev_close"]
-            q["change_pct"] = q["change"] / q["prev_close"] * 100
-        q["ok"] = q["price"] > 0
+        ed = cal.get("Earnings Date")
+        if isinstance(ed, list) and ed:
+            q["earnings_date"] = ed[0]
+        elif ed:
+            q["earnings_date"] = ed
+        if cal.get("Ex-Dividend Date"):
+            q["ex_div_date"] = cal.get("Ex-Dividend Date")
+        if cal.get("Dividend Date"):
+            q["div_date"] = cal.get("Dividend Date")
     except Exception:
         pass
+    if q["prev_close"]:
+        q["change"] = q["price"] - q["prev_close"]
+        q["change_pct"] = q["change"] / q["prev_close"] * 100
+    q["ok"] = q["price"] > 0
     return q
 
 
-@st.cache_data(ttl=600, show_spinner=False)  # 跟 get_quote 同一個快取時間，清單跟詳細頁才不會分別顯示不同時間點的價格
-def get_light(symbol: str) -> dict:
-    """輕量報價：只用 fast_info（快很多），給總覽/卡片用。"""
-    out = {"symbol": symbol, "name": symbol, "sector": "", "price": 0.0,
+def get_quote(symbol: str) -> dict:
+    """單一股票的即時報價 + 基本面 + 盤前盤後 + 分析師資料。
+    抓失敗（尤其現價）不會被快取，下次呼叫會重新真的問一次，不會卡住顯示 0。"""
+    if not HAS_YF:
+        return _empty_quote(symbol)
+    try:
+        return _get_quote_cached(symbol)
+    except Exception:
+        return _empty_quote(symbol)
+
+
+def _empty_light(symbol):
+    return {"symbol": symbol, "name": symbol, "sector": "", "price": 0.0,
            "prev_close": 0.0, "change_pct": 0.0, "ma50": 0.0, "ma200": 0.0,
            "wk52_high": 0.0, "wk52_low": 0.0}
-    if not HAS_YF:
-        return out
-    try:
-        fi = _bounded(lambda: dict(yf.Ticker(symbol).fast_info), default={})
-        out["price"] = float(fi.get("lastPrice") or 0)
-        out["prev_close"] = float(fi.get("previousClose") or 0)
-        out["ma50"] = float(fi.get("fiftyDayAverage") or 0)
-        out["ma200"] = float(fi.get("twoHundredDayAverage") or 0)
-        out["wk52_high"] = float(fi.get("yearHigh") or 0)
-        out["wk52_low"] = float(fi.get("yearLow") or 0)
-        if out["prev_close"]:
-            out["change_pct"] = (out["price"] - out["prev_close"]) / out["prev_close"] * 100
-    except Exception:
-        pass
+
+
+@st.cache_data(ttl=600, show_spinner=False)  # 跟 get_quote 同一個快取時間，清單跟詳細頁才不會分別顯示不同時間點的價格
+def _get_light_cached(symbol: str) -> dict:
+    fi = _bounded(lambda: dict(yf.Ticker(symbol).fast_info))
+    if not fi.get("lastPrice"):
+        raise RuntimeError(f"empty fast_info for {symbol}")
+    out = _empty_light(symbol)
+    out["price"] = float(fi.get("lastPrice") or 0)
+    out["prev_close"] = float(fi.get("previousClose") or 0)
+    out["ma50"] = float(fi.get("fiftyDayAverage") or 0)
+    out["ma200"] = float(fi.get("twoHundredDayAverage") or 0)
+    out["wk52_high"] = float(fi.get("yearHigh") or 0)
+    out["wk52_low"] = float(fi.get("yearLow") or 0)
+    if out["prev_close"]:
+        out["change_pct"] = (out["price"] - out["prev_close"]) / out["prev_close"] * 100
     return out
+
+
+def get_light(symbol: str) -> dict:
+    """輕量報價：只用 fast_info（快很多），給總覽/卡片用。
+    抓失敗不會被快取，下次呼叫會重新真的問一次，不會卡住顯示 0。"""
+    if not HAS_YF:
+        return _empty_light(symbol)
+    try:
+        return _get_light_cached(symbol)
+    except Exception:
+        return _empty_light(symbol)
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -252,7 +273,9 @@ def get_indices() -> list:
     for sym, name in [("^GSPC", "S&P 500"), ("^IXIC", "那斯達克"),
                       ("^DJI", "道瓊"), ("^SOX", "費城半導體")]:
         try:
-            fi = _bounded(lambda s=sym: dict(yf.Ticker(s).fast_info), default={})
+            fi = _bounded(lambda s=sym: dict(yf.Ticker(s).fast_info))
+            if not fi.get("lastPrice"):
+                continue
             p = float(fi.get("lastPrice") or 0)
             pc = float(fi.get("previousClose") or 0)
             out.append({"name": name, "price": p,
@@ -288,12 +311,21 @@ def portfolio_value_series(holdings_tuple, period: str, interval: str) -> pd.Ser
 
 
 @st.cache_data(ttl=300, show_spinner=False)
+def _get_chart_cached(symbol: str, period: str, interval: str) -> pd.DataFrame:
+    h = _bounded(lambda: yf.Ticker(symbol).history(period=period, interval=interval), timeout=8)
+    if h is None or h.empty:
+        raise RuntimeError(f"empty chart for {symbol}")
+    return h
+
+
 def get_chart(symbol: str, period: str = "6mo", interval: str = "1d") -> pd.DataFrame:
+    """抓失敗（空資料）不會被快取，下次呼叫會重新真的問一次。"""
     if not HAS_YF:
         return pd.DataFrame()
-    h = _bounded(lambda: yf.Ticker(symbol).history(period=period, interval=interval),
-                timeout=8, default=None)
-    return h if h is not None else pd.DataFrame()
+    try:
+        return _get_chart_cached(symbol, period, interval)
+    except Exception:
+        return pd.DataFrame()
 
 
 @st.cache_data(ttl=86400, show_spinner=False)
@@ -320,7 +352,7 @@ def get_news(symbol: str, limit: int = 4) -> list:
         return []
     items = []
     try:
-        news = _bounded(lambda: yf.Ticker(symbol).news, default=[]) or []
+        news = _bounded(lambda: yf.Ticker(symbol).news) or []
         for n in news[:limit]:
             c = n.get("content", n)
             title = c.get("title") or n.get("title")
@@ -346,16 +378,21 @@ def get_news(symbol: str, limit: int = 4) -> list:
 
 
 @st.cache_data(ttl=600, show_spinner=False)
+def _get_usdtwd_cached() -> float:
+    h = _bounded(lambda: yf.Ticker("TWD=X").history(period="5d"))
+    if h is None or h.empty:
+        raise RuntimeError("empty TWD=X history")
+    return float(h["Close"].iloc[-1])
+
+
 def get_usdtwd() -> float:
+    """抓失敗不會被快取，下次呼叫會重新真的問一次，不會卡著回傳 0。"""
     if not HAS_YF:
         return 0.0
     try:
-        h = _bounded(lambda: yf.Ticker("TWD=X").history(period="5d"), default=None)
-        if h is not None and not h.empty:
-            return float(h["Close"].iloc[-1])
+        return _get_usdtwd_cached()
     except Exception:
-        pass
-    return 0.0
+        return 0.0
 
 
 def rsi(series: pd.Series, period: int = 14) -> float:

@@ -637,13 +637,13 @@ function watchRowHtml(w) {
   const sub = w.label + (w.target_buy_usd !== null ? ` · 目標 ${usdOnly(w.target_buy_usd)}` : "");
   const row = stockRowHtml({ symbol: w.symbol, shares: null, weight_pct: null, price_usd: w.price_usd,
     day_pct: w.day_pct, emoji: w.emoji, _sub: sub });
-  return `<div class="watch-row-wrap">${row}
-    <button type="button" class="watch-del-btn" data-seg-btn="del-watch" data-value="${esc(w.symbol)}" title="移除追蹤">✕</button>
+  return `<div class="watch-row-wrap" data-symbol="${esc(w.symbol)}">
+    <div class="watch-row-delete-bg">🗑 移除</div>
+    <div class="watch-row-content">${row}</div>
   </div>`;
 }
 
-onSeg("del-watch", async symbol => {
-  if (!confirm(`確定要把 ${symbol} 從追蹤清單移除嗎？`)) return;
+async function deleteWatchSymbol(symbol) {
   try {
     const res = await fetch(`/api/watchlist/${encodeURIComponent(symbol)}`, { method: "DELETE" });
     const j = await res.json();
@@ -654,7 +654,56 @@ onSeg("del-watch", async symbol => {
   } catch (err) {
     alert(err.message);
   }
-});
+}
+
+// 追蹤清單一列往右滑到底＝移除（不用另外點確認鈕，滑到底這個動作本身就是確認）。
+// 滑不到底放開就彈回原位。跟左右換頁的手勢用同一組 touch 事件，所以這裡偵測到
+// 是在 .watch-row-wrap 上開始拖曳時，要蓋掉全域換頁那組手勢（見 bindSwipeNav 的排除清單）。
+function bindWatchSwipe() {
+  let dragEl = null, startX = 0, startY = 0, dx = 0, width = 1, deciding = true, isSwipe = false;
+
+  document.addEventListener("touchstart", e => {
+    const wrap = e.target.closest(".watch-row-wrap");
+    if (!wrap) { dragEl = null; return; }
+    dragEl = wrap.querySelector(".watch-row-content");
+    const t = e.touches[0];
+    startX = t.clientX; startY = t.clientY; dx = 0;
+    width = wrap.getBoundingClientRect().width;
+    deciding = true; isSwipe = false;
+    dragEl.classList.add("dragging");
+  }, { passive: true });
+
+  document.addEventListener("touchmove", e => {
+    if (!dragEl) return;
+    const t = e.touches[0];
+    const rawDx = t.clientX - startX, rawDy = t.clientY - startY;
+    if (deciding) {
+      if (Math.abs(rawDx) < 8 && Math.abs(rawDy) < 8) return;
+      isSwipe = Math.abs(rawDx) > Math.abs(rawDy) * 1.3;
+      deciding = false;
+      if (!isSwipe) { dragEl.classList.remove("dragging"); dragEl = null; return; }
+    }
+    if (!isSwipe) return;
+    dx = Math.max(0, rawDx);
+    dragEl.style.transform = `translateX(${dx}px)`;
+    e.preventDefault();
+  }, { passive: false });
+
+  document.addEventListener("touchend", () => {
+    if (!dragEl || !isSwipe) { dragEl = null; return; }
+    dragEl.classList.remove("dragging");
+    const symbol = dragEl.parentElement.dataset.symbol;
+    if (dx > width * 0.65) {
+      dragEl.style.transform = `translateX(${width}px)`;
+      dragEl.style.opacity = "0";
+      setTimeout(() => deleteWatchSymbol(symbol), 180);
+    } else {
+      dragEl.style.transform = "translateX(0)";
+    }
+    dragEl = null;
+  }, { passive: true });
+}
+bindWatchSwipe();
 
 async function renderWatchList() {
   const app = document.getElementById("app");
@@ -980,7 +1029,7 @@ function bindSwipeNav() {
   document.addEventListener("touchstart", e => {
     const t = e.touches[0];
     sx = t.clientX; sy = t.clientY;
-    active = !e.target.closest(".js-plotly-plot, .plotly-chart-wrap");
+    active = !e.target.closest(".js-plotly-plot, .plotly-chart-wrap, .watch-row-wrap");
   }, { passive: true });
   document.addEventListener("touchend", e => {
     if (!active) return;
