@@ -136,7 +136,13 @@ def _get_quote_cached(symbol: str) -> dict:
     t = yf.Ticker(symbol)
 
     def _fi():
-        return dict(t.fast_info)
+        # 只挑需要的欄位，絕對不要 dict(fast_info) 整包轉換——理由見 _fast_info_subset。
+        # marketCap 改從下面的 info 拿（反正 info 本來就會抓），不要透過 fast_info，
+        # 因為那條路徑在某些股票（尤其 ETF）上會誤觸發一次容易被 Rate Limit 擋掉的
+        # 完整 .info 抓取。
+        return _fast_info_subset(symbol, ["lastPrice", "previousClose", "dayHigh", "dayLow",
+                                          "yearHigh", "yearLow", "fiftyDayAverage",
+                                          "twoHundredDayAverage", "currency"])
 
     def _info():
         try:
@@ -178,9 +184,9 @@ def _get_quote_cached(symbol: str) -> dict:
     q["wk52_low"] = float(fi.get("yearLow") or 0)
     q["ma50"] = float(fi.get("fiftyDayAverage") or 0)
     q["ma200"] = float(fi.get("twoHundredDayAverage") or 0)
-    q["market_cap"] = fi.get("marketCap")
     q["currency"] = fi.get("currency") or "USD"
     if info:
+        q["market_cap"] = info.get("marketCap")
         q["name"] = info.get("shortName") or info.get("longName") or symbol
         q["sector"] = info.get("sector") or ""
         q["industry"] = info.get("industry") or ""
@@ -236,9 +242,25 @@ def _empty_light(symbol):
            "wk52_high": 0.0, "wk52_low": 0.0}
 
 
+_LIGHT_KEYS = ["lastPrice", "previousClose", "fiftyDayAverage",
+               "twoHundredDayAverage", "yearHigh", "yearLow"]
+
+
+def _fast_info_subset(symbol, keys):
+    """只挑需要的欄位，絕對不要 dict(fast_info) 整包轉換！
+    yfinance 的 FastInfo 物件轉成 dict 時，只要有任何一個欄位（尤其是
+    marketCap）在快速端點沒有現成資料，就會在背景偷偷觸發一次完整的
+    .info 抓取（那個很容易被 Yahoo Rate Limit 擋掉的重量級端點）——
+    這就是之前 VOO 這種 ETF 老是抓失敗、其他個股卻正常的真正原因：
+    ETF 的 fast_info 沒有現成 marketCap，一轉 dict 就會誤觸發那個
+    昂貴又容易被擋的 fallback。只用 .get() 精準拿需要的欄位就不會踩到。"""
+    fi = yf.Ticker(symbol).fast_info
+    return {k: fi.get(k) for k in keys}
+
+
 @st.cache_data(ttl=600, show_spinner=False)  # 跟 get_quote 同一個快取時間，清單跟詳細頁才不會分別顯示不同時間點的價格
 def _get_light_cached(symbol: str) -> dict:
-    fi = _bounded(lambda: dict(yf.Ticker(symbol).fast_info))
+    fi = _bounded(lambda: _fast_info_subset(symbol, _LIGHT_KEYS))
     if not fi.get("lastPrice"):
         raise RuntimeError(f"empty fast_info for {symbol}")
     out = _empty_light(symbol)
@@ -273,7 +295,7 @@ def get_indices() -> list:
     for sym, name in [("^GSPC", "S&P 500"), ("^IXIC", "那斯達克"),
                       ("^DJI", "道瓊"), ("^SOX", "費城半導體")]:
         try:
-            fi = _bounded(lambda s=sym: dict(yf.Ticker(s).fast_info))
+            fi = _bounded(lambda s=sym: _fast_info_subset(s, ["lastPrice", "previousClose"]))
             if not fi.get("lastPrice"):
                 continue
             p = float(fi.get("lastPrice") or 0)

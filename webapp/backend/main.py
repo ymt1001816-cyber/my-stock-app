@@ -717,25 +717,6 @@ def index():
     return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
 
 
-@app.get("/api/_debug_light/{symbol}")
-def _debug_light(symbol: str):
-    """暫時的除錯端點：直接看某支股票 fast_info 抓取失敗的真正原因。"""
-    import time
-    import traceback
-    result = {}
-    t0 = time.time()
-    try:
-        fi = mk._bounded(lambda: dict(__import__("yfinance").Ticker(symbol).fast_info))
-        result["ok"] = True
-        result["fi_keys"] = list(fi.keys())
-        result["lastPrice"] = fi.get("lastPrice")
-    except Exception as e:
-        result["ok"] = False
-        result["error"] = repr(e)
-        result["traceback"] = traceback.format_exc()
-    result["elapsed_sec"] = round(time.time() - t0, 2)
-    return result
-
 
 # 前端靜態檔案（放在 API 路由後面掛載，避免蓋掉 /api/*）
 app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
