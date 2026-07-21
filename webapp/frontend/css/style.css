@@ -64,8 +64,11 @@ button{font-family:inherit;cursor:pointer}
   border-radius:99px;background:linear-gradient(180deg,var(--accent),var(--accent-dk))}
 
 /* 淨資產：純文字，無底色無邊框 */
-.hero-plain{padding:6px 2px 4px}
-.hero-plain .wl{font-size:.85rem;font-weight:700;color:var(--sub);letter-spacing:.2px}
+.hero-plain{padding:6px 2px 4px;transition:transform .2s var(--bounce)}
+.hero-link:active .hero-plain{transform:scale(.98)}
+.hero-plain .wl{font-size:.85rem;font-weight:700;color:var(--sub);letter-spacing:.2px;
+  display:flex;justify-content:space-between;align-items:center}
+.hero-plain .wl .arrow{font-size:1.2rem;font-weight:700;color:var(--sub)}
 .hero-plain .wb{font-size:2.3rem;font-weight:800;color:var(--ink);margin:6px 0 3px;letter-spacing:.2px}
 .hero-plain .ws{font-size:.85rem;color:var(--sub);font-weight:500}
 

@@ -133,9 +133,9 @@ async function renderHome() {
     return;
   }
 
-  const hero = `<a href="?nav=home&trend=1" style="text-decoration:none;color:inherit;display:block">
+  const hero = `<a href="?nav=home&trend=1" class="hero-link" style="text-decoration:none;color:inherit;display:block">
     <div class="hero-plain">
-      <div class="wl">資產總額 · 持股＋現金</div>
+      <div class="wl"><span>資產總額 · 持股＋現金</span><span class="arrow">›</span></div>
       <div class="wb">${mh(s.assets_usd)}</div>
       <div class="ws">持股 ${mh(s.total_mv_usd)}</div>
     </div></a>`;
@@ -221,7 +221,7 @@ async function loadSymbols() {
   return symbolsCache;
 }
 
-function stockRowHtml(r) {
+function stockRowHtml(r, navKey = "hold") {
   const sub = r._sub !== undefined ? r._sub :
     `${r.shares % 1 === 0 ? r.shares : r.shares.toFixed(5)} 股 · 佔比 ${r.weight_pct.toFixed(1)}%`;
   // 持股列表看的是「賺賠多少」，不是當天股價；追蹤清單沒有成本，才顯示現價/當日漲跌。
@@ -232,7 +232,7 @@ function stockRowHtml(r) {
        <div class="chip" style="background:${plColor}17;color:${plColor}">${pctStr(r.pl_pct)}</div>`
     : `<div class="nm">${usdOnly(r.price_usd)}</div>
        <div class="chip" style="background:${plColor}17;color:${plColor}">${pctStr(r.day_pct)}</div>`;
-  return `<a class="hlink" href="?nav=hold&sym=${encodeURIComponent(r.symbol)}">
+  return `<a class="hlink" href="?nav=${navKey}&sym=${encodeURIComponent(r.symbol)}">
     <div class="hitem">
       <div class="hitem-left">
         <div class="hitem-logo">${logoImg(r.symbol)}</div>
@@ -405,7 +405,7 @@ function rerenderHoldBody() {
   ], holdSort) +
   `<div style="display:flex;justify-content:space-between;color:#8a8983;font-size:.76rem;padding:0 4px 6px">
     <span>持倉 · ${rows.length} 檔</span><span>損益金額　·　報酬率</span></div>` +
-  rows.map(stockRowHtml).join("") +
+  rows.map(r => stockRowHtml(r)).join("") +
   `<p class="hint">👆 點任一列看個股詳細（走勢圖、盤前盤後、財報、建議）</p>` + renderFooter();
   const panel = document.getElementById("addTxPanel");
   if (panel) panel.innerHTML = renderAddForm();
@@ -437,11 +437,11 @@ async function renderHoldList() {
 let detailRange = "1mo";
 let detailCache = null;
 
-async function renderDetail(symbol) {
+async function renderDetail(symbol, fromNav = "hold") {
   const app = document.getElementById("app");
   app.innerHTML = `<button class="btn-back" id="backBtn">←</button>
-    <div id="detailBody"><div class="loading">載入中…</div></div>` + renderBottomNav("hold");
-  document.getElementById("backBtn").addEventListener("click", () => navigateTo("?nav=hold"));
+    <div id="detailBody"><div class="loading">載入中…</div></div>` + renderBottomNav(fromNav);
+  document.getElementById("backBtn").addEventListener("click", () => navigateTo(`?nav=${fromNav}`));
 
   const d = await api(`/holdings/${encodeURIComponent(symbol)}`);
   detailCache = d;
@@ -630,13 +630,13 @@ function rerenderWatchBody() {
     `<div style="display:flex;justify-content:space-between;color:#8a8983;font-size:.76rem;padding:0 4px 6px">
       <span>觀察 · ${watchData.rows.length} 檔</span><span>現價　·　單日漲跌</span></div>` +
     watchData.rows.map(watchRowHtml).join("") +
-    `<p class="hint">👆 點任一列看個股詳細，右上角 ✕ 可移除追蹤</p>` + renderFooter();
+    `<p class="hint">👆 點任一列看個股詳細　·　👈 向左滑到底可移除追蹤</p>` + renderFooter();
 }
 
 function watchRowHtml(w) {
   const sub = w.label + (w.target_buy_usd !== null ? ` · 目標 ${usdOnly(w.target_buy_usd)}` : "");
   const row = stockRowHtml({ symbol: w.symbol, shares: null, weight_pct: null, price_usd: w.price_usd,
-    day_pct: w.day_pct, emoji: w.emoji, _sub: sub });
+    day_pct: w.day_pct, emoji: w.emoji, _sub: sub }, "watch");
   return `<div class="watch-row-wrap" data-symbol="${esc(w.symbol)}">
     <div class="watch-row-delete-bg">🗑 移除</div>
     <div class="watch-row-content">${row}</div>
@@ -1009,11 +1009,10 @@ async function render() {
 
   if (qs("trend", null)) return renderTrend();
   if (qs("cash", null)) return renderCash();
+  const sym = qs("sym", null);
+  if (sym) return renderDetail(sym, nav);
   if (nav === "home") return renderHome();
-  if (nav === "hold") {
-    const sym = qs("sym", null);
-    return sym ? renderDetail(sym) : renderHoldList();
-  }
+  if (nav === "hold") return renderHoldList();
   if (nav === "watch") return renderWatchList();
   if (nav === "stats") return renderStats();
   if (nav === "brief") return renderBrief();
