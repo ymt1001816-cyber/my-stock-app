@@ -654,12 +654,6 @@ def generate_briefing():
     return {"html": html, "last_at": cfg["last_briefing_at"]}
 
 
-@app.post("/api/cache/clear")
-def clear_cache():
-    import streamlit as st
-    st.cache_data.clear()
-    return {"ok": True}
-
 
 # ------------------------------------------------------------------
 # 📈 資產走勢（總覽頁點淨資產進去）
@@ -717,26 +711,36 @@ def index():
     return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
 
 
+# 個股詳細頁「走勢圖」區間選單 6 種、資產走勢頁 3 種粒度，都要精準對到
+# main.py 對應端點實際使用的 (period, interval) 組合，快取的 key 才會真的命中。
+_CHART_RANGES = [("1d", "5m"), ("5d", "30m"), ("1mo", "1d"),
+                 ("3mo", "1d"), ("6mo", "1d"), ("1y", "1d")]
+_TREND_GRANS = [("1mo", "1d"), ("1y", "1d"), ("5y", "1mo")]
+
+
 @app.get("/api/_warm_cache")
 def warm_cache():
-    """給外部排程（cron-job.org）打的：一次把清單頁跟個股詳細頁會用到的報價
-    都先問過一遍放進快取。/api/holdings、/api/watchlist 只會熱清單頁用的
-    get_light；點進個股詳細頁用的 get_quote／get_chart／get_news 是完全不同
-    的快取，之前沒有被預熱到，所以列表秒開、點進個股卻還要等 2-3 秒。"""
+    """給外部排程（cron-job.org）打的：把整個 App 點得到的每一種資料都先問過
+    一遍放進快取，讓使用者不管按哪個按鈕都是直接吃現成的、秒開。"""
     hold = load_holdings()
     watch = load_watch()
     held_syms = hold["symbol"].tolist() if not hold.empty else []
     watch_syms = watch["symbol"].tolist() if not watch.empty else []
     all_syms = sorted(set(held_syms) | set(watch_syms))
 
-    with ThreadPoolExecutor(max_workers=3) as ex:
+    with ThreadPoolExecutor(max_workers=5) as ex:
         list(ex.map(mk.get_light, all_syms))
-    with ThreadPoolExecutor(max_workers=3) as ex:
         list(ex.map(mk.get_quote, all_syms))
-        list(ex.map(lambda s: mk.get_chart(s, "1mo", "1d"), all_syms))
         list(ex.map(lambda s: mk.get_news(s, 4), all_syms))
-    mk.get_usdtwd()
+        for period, interval in _CHART_RANGES:
+            list(ex.map(lambda s, p=period, i=interval: mk.get_chart(s, p, i), all_syms))
 
+    if held_syms:
+        ht = tuple((s, float(hold[hold["symbol"] == s]["shares"].iloc[0])) for s in held_syms)
+        for period, interval in _TREND_GRANS:
+            mk.portfolio_value_series(ht, period, interval)
+
+    mk.get_usdtwd()
     return {"ok": True, "symbols_warmed": len(all_syms)}
 
 

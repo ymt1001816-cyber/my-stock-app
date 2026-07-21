@@ -844,18 +844,15 @@ async function renderStats() {
 }
 
 // ------------------------------------------------------------------
-// 頁尾：每頁共用的「🔄 更新」按鈕
+// 頁尾：每頁共用的說明文字
 // ------------------------------------------------------------------
+// 拿掉了原本的「🔄 更新」按鈕：資料已經有背景排程每 10 分鐘自動保持新鮮，
+// 這顆按鈕唯一的效果只是把剛預熱好的快取整個清空，點下去反而讓 App 變慢。
 function renderFooter() {
   return `<hr style="margin:22px 0 14px">
-    <button type="button" class="btn-submit" data-seg-btn="refresh-cache" data-value="1">🔄 更新</button>
     <p class="hint" style="text-align:center;margin-top:10px">
-      資料來源：Yahoo Finance（延遲行情）。本工具僅供個人記帳與參考，不構成投資建議。</p>`;
+      資料來源：Yahoo Finance（延遲行情，每 10 分鐘自動更新）。本工具僅供個人記帳與參考，不構成投資建議。</p>`;
 }
-onSeg("refresh-cache", async () => {
-  await fetch("/api/cache/clear", { method: "POST" });
-  location.reload();
-});
 
 // ------------------------------------------------------------------
 // 📰 每日簡報
