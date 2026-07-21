@@ -136,7 +136,7 @@ def enrich_holdings(hold):
         return []
     # 平行度不要開太大：一次打太多次 Yahoo Finance 反而容易被暫時擋掉，
     # 一堆股票的報價就會變成 0。
-    with ThreadPoolExecutor(max_workers=min(4, len(recs))) as ex:
+    with ThreadPoolExecutor(max_workers=min(3, len(recs))) as ex:
         quotes = list(ex.map(lambda r: mk.get_light(r["symbol"]), recs))
     rows = []
     for r, q in zip(recs, quotes):
@@ -505,7 +505,7 @@ def get_watchlist():
         return {"empty": True, "rows": []}
     recs = watch.to_dict("records")
     # 平行抓（跟持股清單同一套節流設定），不然一次看的股票一多，一支一支排隊抓會很慢
-    with ThreadPoolExecutor(max_workers=min(4, len(recs))) as ex:
+    with ThreadPoolExecutor(max_workers=min(3, len(recs))) as ex:
         quotes = list(ex.map(lambda w: mk.get_light(w["symbol"]), recs))
     rows = []
     for w, q in zip(recs, quotes):

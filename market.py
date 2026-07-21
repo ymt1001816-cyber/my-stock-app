@@ -19,7 +19,7 @@ except Exception:
 _NET_POOL = ThreadPoolExecutor(max_workers=32)
 
 
-def _bounded(fn, *args, timeout=6, retries=1, **kwargs):
+def _bounded(fn, *args, timeout=10, retries=2, **kwargs):
     """跟 Yahoo 要資料：有時只是同時打太多次被暫時擋一下，重試一次通常就過了。
     兩次都失敗就直接 raise（不要回傳假的預設值！）——凡是包這層的函式都設計成
     「失敗就整個 raise 出去、不快取」，這樣下次呼叫才會真的重新問一次，
