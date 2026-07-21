@@ -107,6 +107,15 @@ button{font-family:inherit;cursor:pointer}
 /* 提醒區塊 */
 .posblock{border-radius:var(--r-md);padding:14px 18px;margin:6px 0;box-shadow:var(--sh-sm)}
 
+/* 追蹤清單：右上角小小的移除按鈕 */
+.watch-row-wrap{position:relative}
+.watch-del-btn{position:absolute;top:6px;right:6px;width:22px;height:22px;
+  border-radius:50%;border:1px solid var(--line);background:var(--card2);
+  color:var(--sub);font-size:.7rem;line-height:1;padding:0;z-index:5;
+  transition:transform .2s var(--bounce),color .15s,border-color .15s}
+.watch-del-btn:hover{color:var(--red);border-color:var(--red)}
+.watch-del-btn:active{transform:scale(.88)}
+
 /* 券商風格持倉列 */
 .hlink{text-decoration:none;color:inherit;display:block}
 .hitem{display:flex;align-items:center;justify-content:space-between;gap:10px;

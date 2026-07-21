@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 # 專案根目錄（webapp/backend/ 的上上層），讓我們可以直接 import 既有的 market.py / analysis.py
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -161,7 +161,7 @@ def enrich_holdings(hold):
 # ------------------------------------------------------------------
 class ConfigUpdate(BaseModel):
     cur: str | None = None
-    cash_usd: float | None = None
+    cash_usd: float | None = Field(None, ge=0)
 
 
 @app.get("/api/config")
@@ -392,26 +392,26 @@ def get_chart(symbol: str, range: str = "1mo"):
 # ------------------------------------------------------------------
 class BuyIn(BaseModel):
     symbol: str
-    shares: float
-    price: float
+    shares: float = Field(gt=0)
+    price: float = Field(gt=0)
     date: str
-    fee: float = 0.0
-    stop_price: float | None = None
+    fee: float = Field(0.0, ge=0)
+    stop_price: float | None = Field(None, ge=0)
     note: str = ""
 
 
 class SellIn(BaseModel):
     symbol: str
-    shares: float
-    price: float
+    shares: float = Field(gt=0)
+    price: float = Field(gt=0)
     date: str
-    fee: float = 0.0
-    tax: float = 0.0
+    fee: float = Field(0.0, ge=0)
+    tax: float = Field(0.0, ge=0)
 
 
 class DividendIn(BaseModel):
     symbol: str
-    amount: float
+    amount: float = Field(gt=0)
     date: str
 
 
@@ -423,8 +423,8 @@ def _qtr(d):
 def transaction_buy(body: BuyIn):
     s = body.symbol.upper().strip()
     sh, px, fee = body.shares, body.price, body.fee
-    if not s or sh <= 0 or px <= 0:
-        raise HTTPException(400, "請填代號、股數、買進價。")
+    if not s:
+        raise HTTPException(400, "請填代號。")
     dt = date_cls.fromisoformat(body.date)
     hh = load_holdings()
     if s in hh["symbol"].values:
@@ -464,8 +464,8 @@ def transaction_sell(body: SellIn):
         raise HTTPException(400, f"目前沒有持有 {s}。")
     held = float(row.iloc[0]["shares"] or 0)
     avg = float(row.iloc[0]["avg_cost"] or 0)
-    if sh <= 0 or px <= 0 or sh > held + 1e-9:
-        raise HTTPException(400, "請填正確的賣出股數與價格。")
+    if sh > held + 1e-9:
+        raise HTTPException(400, f"賣出股數不能超過持有的 {held:g} 股。")
     dt = date_cls.fromisoformat(body.date)
     income = sh * px
     cost = sh * avg
@@ -494,7 +494,7 @@ def transaction_sell(body: SellIn):
 # ------------------------------------------------------------------
 class WatchIn(BaseModel):
     symbol: str
-    target_buy: float | None = None
+    target_buy: float | None = Field(None, ge=0)
     note: str = ""
 
 
@@ -535,11 +535,22 @@ def add_watchlist(body: WatchIn):
     return {"ok": True, "message": f"已加入 {s}！"}
 
 
+@app.delete("/api/watchlist/{symbol}")
+def remove_watchlist(symbol: str):
+    s = symbol.upper().strip()
+    nw = load_watch()
+    if s not in nw["symbol"].values:
+        raise HTTPException(404, f"{s} 不在追蹤清單。")
+    nw = nw[nw["symbol"] != s].reset_index(drop=True)
+    save_watch(nw)
+    return {"ok": True, "message": f"已移除 {s}。"}
+
+
 @app.post("/api/transactions/dividend")
 def transaction_dividend(body: DividendIn):
     s = body.symbol.upper().strip()
-    if not s or body.amount <= 0:
-        raise HTTPException(400, "請填代號與金額。")
+    if not s:
+        raise HTTPException(400, "請填代號。")
     dt = date_cls.fromisoformat(body.date)
     rate = mk.get_usdtwd() or 0
     q = mk.get_quote(s)

@@ -28,6 +28,20 @@ function colorOf(x) {
   return x > 0 ? GREEN : (x < 0 ? RED : GREY);
 }
 
+// 股票 logo：用真正的 <img>（可以 lazy-load、抓不到圖時 onerror 直接移除，
+// 露出底下 wrapper 的中性底色，不會出現「圖片壞掉」的破圖示）。
+function logoImg(symbol, size, radius, url) {
+  url = url || `https://financialmodelingprep.com/image-stock/${symbol}.png`;
+  return `<img src="${url}" alt="" loading="lazy" decoding="async"
+    style="width:78%;height:78%;object-fit:contain;display:block;margin:11% auto"
+    onerror="this.remove()">`;
+}
+function logoWrap(symbol, size, radius, extraStyle = "", url) {
+  return `<div style="width:${size}px;height:${size}px;flex:0 0 auto;border-radius:${radius}px;
+    background:#d9d7cc;border:1px solid #c3c1b3;overflow:hidden;${extraStyle}">
+    ${logoImg(symbol, size, radius, url)}</div>`;
+}
+
 function pctStr(x) {
   return (x === null || x === undefined) ? "—" : `${x >= 0 ? "+" : ""}${x.toFixed(2)}%`;
 }
@@ -54,6 +68,18 @@ async function api(path, opts) {
   const res = await fetch(`/api${path}`, opts);
   if (!res.ok) throw new Error(`API ${path} failed: ${res.status}`);
   return res.json();
+}
+
+// 後端錯誤有兩種格式：自己寫的 HTTPException（detail 是字串），
+// 或欄位驗證失敗（detail 是一堆 {loc, msg} 物件），統一整理成一行好讀的訊息。
+function apiErrorMessage(j, fallback) {
+  const d = j && j.detail;
+  if (!d) return fallback;
+  if (typeof d === "string") return d;
+  if (Array.isArray(d)) {
+    return d.map(e => `${e.loc ? e.loc[e.loc.length - 1] : ""}: ${e.msg}`).join("；");
+  }
+  return fallback;
 }
 
 function sec(title) {
@@ -209,7 +235,7 @@ function stockRowHtml(r) {
   return `<a class="hlink" href="?nav=hold&sym=${encodeURIComponent(r.symbol)}">
     <div class="hitem">
       <div class="hitem-left">
-        <div class="hitem-logo" style="background-image:url('https://financialmodelingprep.com/image-stock/${r.symbol}.png')"></div>
+        <div class="hitem-logo">${logoImg(r.symbol)}</div>
         <div class="hitem-name">
           <div class="nm">${r.emoji} ${esc(r.symbol)}</div>
           <div class="sub">${esc(sub)}</div>
@@ -341,7 +367,7 @@ async function submitTransaction(kind) {
     const res = await fetch(`/api${path}`, { method: "POST",
       headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const j = await res.json();
-    if (!res.ok) throw new Error(j.detail || "送出失敗");
+    if (!res.ok) throw new Error(apiErrorMessage(j, "送出失敗"));
     msgEl.innerHTML = `<div class="form-success">✅ ${esc(j.message)}</div>`;
     addOpen = false;
     await loadHoldData(true);
@@ -428,9 +454,8 @@ async function renderDetail(symbol) {
   if (d.post_price_usd) extra = `　🌙 盤後 ${usdOnly(d.post_price_usd)}（${pctStr(d.post_pct)}）`;
   const dispState = extra ? "" : stateTxt;
 
-  let html = `<h1 style="margin:0"><span style="display:inline-block;width:40px;height:40px;
-      vertical-align:middle;margin-right:12px;border-radius:9px;border:1px solid #c3c1b3;
-      background:#d9d7cc url('${d.logo_url}') center/78% no-repeat"></span>${esc(d.symbol)} · ${esc(d.name)}</h1>
+  let html = `<h1 style="margin:0">${logoWrap(d.symbol, 40, 9,
+      "display:inline-block;vertical-align:middle;margin-right:12px", d.logo_url)}${esc(d.symbol)} · ${esc(d.name)}</h1>
     <div style="color:#6b7280;margin:4px 0 2px">🏢 ${esc(d.biz)}　·　${esc(d.sector)}</div>
     <div><span style="font-size:2.1rem;font-weight:800">${usdOnly(d.price_usd)}</span>
       <span style="color:${dc};font-size:1.2rem;font-weight:700">${pctStr(d.change_pct)}</span>
@@ -573,7 +598,7 @@ async function submitWatch() {
     const res = await fetch("/api/watchlist", { method: "POST",
       headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const j = await res.json();
-    if (!res.ok) throw new Error(j.detail || "送出失敗");
+    if (!res.ok) throw new Error(apiErrorMessage(j, "送出失敗"));
     if (j.ok === false) {
       msgEl.innerHTML = `<div class="form-error">${esc(j.message)}</div>`;
       return;
@@ -604,13 +629,32 @@ function rerenderWatchBody() {
   body.innerHTML =
     `<div style="display:flex;justify-content:space-between;color:#8a8983;font-size:.76rem;padding:0 4px 6px">
       <span>觀察 · ${watchData.rows.length} 檔</span><span>現價　·　單日漲跌</span></div>` +
-    watchData.rows.map(w => {
-      const sub = w.label + (w.target_buy_usd !== null ? ` · 目標 ${usdOnly(w.target_buy_usd)}` : "");
-      return stockRowHtml({ symbol: w.symbol, shares: null, weight_pct: null, price_usd: w.price_usd,
-        day_pct: w.day_pct, emoji: w.emoji, _sub: sub });
-    }).join("") +
-    `<p class="hint">👆 點任一列看個股詳細（走勢圖、盤前盤後、財報、建議）</p>` + renderFooter();
+    watchData.rows.map(watchRowHtml).join("") +
+    `<p class="hint">👆 點任一列看個股詳細，右上角 ✕ 可移除追蹤</p>` + renderFooter();
 }
+
+function watchRowHtml(w) {
+  const sub = w.label + (w.target_buy_usd !== null ? ` · 目標 ${usdOnly(w.target_buy_usd)}` : "");
+  const row = stockRowHtml({ symbol: w.symbol, shares: null, weight_pct: null, price_usd: w.price_usd,
+    day_pct: w.day_pct, emoji: w.emoji, _sub: sub });
+  return `<div class="watch-row-wrap">${row}
+    <button type="button" class="watch-del-btn" data-seg-btn="del-watch" data-value="${esc(w.symbol)}" title="移除追蹤">✕</button>
+  </div>`;
+}
+
+onSeg("del-watch", async symbol => {
+  if (!confirm(`確定要把 ${symbol} 從追蹤清單移除嗎？`)) return;
+  try {
+    const res = await fetch(`/api/watchlist/${encodeURIComponent(symbol)}`, { method: "DELETE" });
+    const j = await res.json();
+    if (!res.ok) throw new Error(apiErrorMessage(j, "移除失敗"));
+    watchData = null;
+    await loadWatchData();
+    rerenderWatchBody();
+  } catch (err) {
+    alert(err.message);
+  }
+});
 
 async function renderWatchList() {
   const app = document.getElementById("app");
@@ -640,8 +684,7 @@ let statsShowN = {};
 let statsCache = {};
 
 function txCardHtml(t) {
-  const logo = `<div style="width:36px;height:36px;flex:0 0 auto;border-radius:8px;
-    border:1px solid #c3c1b3;background:#d9d7cc url('https://financialmodelingprep.com/image-stock/${t.symbol}.png') center/78% no-repeat"></div>`;
+  const logo = logoWrap(t.symbol, 36, 8);
   const symBadge = `<span style="background:var(--card2);color:var(--sub);font-size:.72rem;
     font-weight:700;padding:2px 7px;border-radius:6px;margin-right:6px">${esc(t.symbol)}</span>`;
   const tagColor = { "買進": RED, "配息": ORANGE }[t.type] || GREEN;
@@ -712,8 +755,7 @@ function rerenderStatsBody() {
     : "";
 
   const rankHtml = s.ranking.map(r => `<div class="hitem"><div style="display:flex;align-items:center;gap:10px">
-    <div style="width:30px;height:30px;flex:0 0 auto;border-radius:7px;border:1px solid #c3c1b3;
-      background:#d9d7cc url('https://financialmodelingprep.com/image-stock/${r.symbol}.png') center/78% no-repeat"></div>
+    ${logoWrap(r.symbol, 30, 7)}
     <b>${esc(r.symbol)}</b></div><b style="color:${colorOf(r.pl_usd)}">${mh(r.pl_usd, true)}</b></div>`).join("");
 
   body.innerHTML = summary +
@@ -798,7 +840,7 @@ async function renderBrief() {
     body.innerHTML = `<div class="loading">整理大盤、你的持股與相關新聞中…（約 10-20 秒）</div>`;
     try {
       const data = await fetch("/api/briefing/generate", { method: "POST" }).then(r => {
-        if (!r.ok) return r.json().then(j => { throw new Error(j.detail || "產生失敗"); });
+        if (!r.ok) return r.json().then(j => { throw new Error(apiErrorMessage(j, "產生失敗")); });
         return r.json();
       });
       renderBriefBody(data);
