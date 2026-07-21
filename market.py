@@ -113,7 +113,7 @@ def _ts_to_date(ts):
         return None
 
 
-@st.cache_data(ttl=120, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def get_quote(symbol: str) -> dict:
     """單一股票的即時報價 + 基本面 + 盤前盤後 + 分析師資料。"""
     q = {
@@ -220,7 +220,7 @@ def get_quote(symbol: str) -> dict:
     return q
 
 
-@st.cache_data(ttl=120, show_spinner=False)  # 跟 get_quote 同一個快取時間，清單跟詳細頁才不會分別顯示不同時間點的價格
+@st.cache_data(ttl=600, show_spinner=False)  # 跟 get_quote 同一個快取時間，清單跟詳細頁才不會分別顯示不同時間點的價格
 def get_light(symbol: str) -> dict:
     """輕量報價：只用 fast_info（快很多），給總覽/卡片用。"""
     out = {"symbol": symbol, "name": symbol, "sector": "", "price": 0.0,
