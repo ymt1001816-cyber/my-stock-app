@@ -684,8 +684,8 @@ function bindWatchSwipe() {
       if (!isSwipe) { dragEl.classList.remove("dragging"); dragEl = null; return; }
     }
     if (!isSwipe) return;
-    dx = Math.max(0, rawDx);
-    dragEl.style.transform = `translateX(${dx}px)`;
+    dx = Math.max(0, -rawDx);
+    dragEl.style.transform = `translateX(${-dx}px)`;
     e.preventDefault();
   }, { passive: false });
 
@@ -694,7 +694,7 @@ function bindWatchSwipe() {
     dragEl.classList.remove("dragging");
     const symbol = dragEl.parentElement.dataset.symbol;
     if (dx > width * 0.65) {
-      dragEl.style.transform = `translateX(${width}px)`;
+      dragEl.style.transform = `translateX(${-width}px)`;
       dragEl.style.opacity = "0";
       setTimeout(() => deleteWatchSymbol(symbol), 180);
     } else {
