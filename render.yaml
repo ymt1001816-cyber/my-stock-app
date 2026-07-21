@@ -14,8 +14,12 @@ services:
         value: ymt1001816-cyber/my-stock-app
 
 # Render 的 Cron Job 免費方案不支援（只有 Web Service 有免費方案），所以「定時打網址
-# 預先跑熱快取／避免睡著」改用外部免費排程服務（例如 cron-job.org）打下面兩個網址，
+# 預先跑熱快取／避免睡著」改用外部免費排程服務（例如 cron-job.org）打下面這一個網址，
 # 不是用 Render 自己的 Cron Job：
-#   https://my-stock-webapp.onrender.com/api/holdings
-#   https://my-stock-webapp.onrender.com/api/watchlist
-# 排程頻率設 10 分鐘一次，跟 market.py 裡報價快取的 600 秒（10 分鐘）一致。
+#   https://my-stock-webapp.onrender.com/api/_warm_cache
+# 排程頻率設 10 分鐘一次，跟 market.py 裡報價快取的 600 秒（10 分鐘）一致。這個端點
+# 一次把清單頁跟個股詳細頁會用到的報價/走勢圖/新聞都預先問過一輪（可能要 20-30 秒
+# 才會回應，外部排程服務如果自己的逾時比較短、顯示「逾時失敗」也沒關係——伺服器這邊
+# 還是會把工作跑完，快取還是會確實被熱好，只是排程服務自己沒等到回應而已）。
+# 如果之前設定過打 /api/holdings、/api/watchlist 這兩個網址的排程，可以刪掉，
+# 改成只留這一個就好。

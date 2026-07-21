@@ -717,6 +717,28 @@ def index():
     return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
 
 
+@app.get("/api/_warm_cache")
+def warm_cache():
+    """給外部排程（cron-job.org）打的：一次把清單頁跟個股詳細頁會用到的報價
+    都先問過一遍放進快取。/api/holdings、/api/watchlist 只會熱清單頁用的
+    get_light；點進個股詳細頁用的 get_quote／get_chart／get_news 是完全不同
+    的快取，之前沒有被預熱到，所以列表秒開、點進個股卻還要等 2-3 秒。"""
+    hold = load_holdings()
+    watch = load_watch()
+    held_syms = hold["symbol"].tolist() if not hold.empty else []
+    watch_syms = watch["symbol"].tolist() if not watch.empty else []
+    all_syms = sorted(set(held_syms) | set(watch_syms))
+
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        list(ex.map(mk.get_light, all_syms))
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        list(ex.map(mk.get_quote, all_syms))
+        list(ex.map(lambda s: mk.get_chart(s, "1mo", "1d"), all_syms))
+        list(ex.map(lambda s: mk.get_news(s, 4), all_syms))
+    mk.get_usdtwd()
+
+    return {"ok": True, "symbols_warmed": len(all_syms)}
+
 
 # 前端靜態檔案（放在 API 路由後面掛載，避免蓋掉 /api/*）
 app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
