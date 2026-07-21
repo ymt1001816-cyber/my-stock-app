@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
 
 :root{
   --ink:#2b2b28; --sub:#87867e; --line:rgba(40,38,30,.11);
@@ -16,9 +16,11 @@ body{margin:0;background:
   radial-gradient(1100px 520px at 12% -8%, #f8f7f4 0%, transparent 60%),
   radial-gradient(900px 480px at 100% 0%, #f4f2ec 0%, transparent 55%),
   #ececea;
-  font-family:-apple-system,'Segoe UI','PingFang TC','Microsoft JhengHei',sans-serif;
+  font-family:'Noto Sans TC',-apple-system,'Segoe UI','PingFang TC','Microsoft JhengHei',sans-serif;
   font-size:15px;color:var(--ink)}
-h1,h2,h3,.nm,.wb{font-family:'Manrope',-apple-system,'Segoe UI','PingFang TC','Microsoft JhengHei',sans-serif}
+/* Manrope 沒有中文字glyph，中文字一律會 fallback 到 Noto Sans TC，
+   數字/英文（金額、股票代號）才會真的套用 Manrope 的字型效果 */
+h1,h2,h3,.nm,.wb{font-family:'Manrope','Noto Sans TC',-apple-system,'Segoe UI','PingFang TC','Microsoft JhengHei',sans-serif}
 #app{max-width:1080px;margin:0 auto;
   padding:calc(1.8rem + env(safe-area-inset-top)) 1rem 3rem}
 h1{font-size:1.68rem;font-weight:800;letter-spacing:.1px;margin:0}
