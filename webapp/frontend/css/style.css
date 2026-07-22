@@ -198,7 +198,12 @@ button{font-family:inherit;cursor:pointer}
 /* 關鍵數據卡片 */
 .statcardwrap{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);
   padding:14px 16px 4px;box-shadow:var(--sh-sm);margin:4px 0 2px}
-.statcardwrap .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px 8px}
+/* 手機寬度先用 2 欄，不然像「52週高/低」「50/200日均」這種標籤配上兩個數字的欄位，
+   3 欄擠出來每格不到 100px，數字幾乎都要被迫換成兩行，看起來很擁擠。桌面/平板夠寬才切回 3 欄。 */
+.statcardwrap .grid3{display:grid;grid-template-columns:repeat(2,1fr);gap:16px 10px}
+@media (min-width:480px){
+  .statcardwrap .grid3{grid-template-columns:repeat(3,1fr)}
+}
 .statcardwrap .cell .l{font-size:.66rem;color:var(--sub);line-height:1.3;margin-bottom:3px}
 .statcardwrap .cell .v{font-size:.88rem;font-weight:700;color:var(--ink);line-height:1.3}
 .statcardwrap .cell{padding-bottom:14px}
