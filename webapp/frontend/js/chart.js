@@ -125,9 +125,30 @@ function drawLineChart(container, points, { color, fillColor, moneyFmt }) {
     tooltip.style.display = "none";
   }
 
-  canvas.addEventListener("touchstart", e => { showTip(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
-  canvas.addEventListener("touchmove", e => { showTip(e.touches[0].clientX, e.touches[0].clientY); e.preventDefault(); }, { passive: false });
-  canvas.addEventListener("touchend", () => setTimeout(hideTip, 800), { passive: true });
+  // 觸碰一開始不知道使用者是想看數值還是想上下捲動頁面，先假設是點一下看數值；
+  // 手指真的移動之後才判斷方向——明顯偏水平才繼續追蹤數值、擋掉預設行為，
+  // 偏垂直就把提示收掉、放手讓瀏覽器自己捲動（不然整張圖會把上下滑動全部吃掉）。
+  let touchState = null;
+  canvas.addEventListener("touchstart", e => {
+    const t = e.touches[0];
+    touchState = { sx: t.clientX, sy: t.clientY, deciding: true, tracking: false };
+    showTip(t.clientX, t.clientY);
+  }, { passive: true });
+  canvas.addEventListener("touchmove", e => {
+    if (!touchState) return;
+    const t = e.touches[0];
+    const dx = t.clientX - touchState.sx, dy = t.clientY - touchState.sy;
+    if (touchState.deciding) {
+      if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+      touchState.tracking = Math.abs(dx) > Math.abs(dy) * 1.2;
+      touchState.deciding = false;
+      if (!touchState.tracking) { hideTip(); return; }
+    }
+    if (!touchState.tracking) return;
+    showTip(t.clientX, t.clientY);
+    e.preventDefault();
+  }, { passive: false });
+  canvas.addEventListener("touchend", () => { touchState = null; setTimeout(hideTip, 800); }, { passive: true });
   canvas.addEventListener("mousemove", e => showTip(e.clientX, e.clientY));
   canvas.addEventListener("mouseleave", hideTip);
 }
@@ -217,9 +238,28 @@ function drawBarChart(container, points, { posColor, negColor, moneyFmt }) {
   }
   function hideTip() { paint(null); tooltip.style.display = "none"; }
 
-  canvas.addEventListener("touchstart", e => showTip(e.touches[0].clientX), { passive: true });
-  canvas.addEventListener("touchmove", e => { showTip(e.touches[0].clientX); e.preventDefault(); }, { passive: false });
-  canvas.addEventListener("touchend", () => setTimeout(hideTip, 800), { passive: true });
+  // 同上：只有明顯偏水平的拖曳才當成「看數值」，偏垂直就收掉提示、讓頁面正常捲動。
+  let touchState = null;
+  canvas.addEventListener("touchstart", e => {
+    const t = e.touches[0];
+    touchState = { sx: t.clientX, sy: t.clientY, deciding: true, tracking: false };
+    showTip(t.clientX);
+  }, { passive: true });
+  canvas.addEventListener("touchmove", e => {
+    if (!touchState) return;
+    const t = e.touches[0];
+    const dx = t.clientX - touchState.sx, dy = t.clientY - touchState.sy;
+    if (touchState.deciding) {
+      if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+      touchState.tracking = Math.abs(dx) > Math.abs(dy) * 1.2;
+      touchState.deciding = false;
+      if (!touchState.tracking) { hideTip(); return; }
+    }
+    if (!touchState.tracking) return;
+    showTip(t.clientX);
+    e.preventDefault();
+  }, { passive: false });
+  canvas.addEventListener("touchend", () => { touchState = null; setTimeout(hideTip, 800); }, { passive: true });
   canvas.addEventListener("mousemove", e => showTip(e.clientX));
   canvas.addEventListener("mouseleave", hideTip);
 }
