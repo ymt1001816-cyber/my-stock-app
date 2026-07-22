@@ -240,6 +240,17 @@ document.addEventListener("click", e => {
   if (btn && segHandlers[btn.dataset.segBtn]) segHandlers[btn.dataset.segBtn](btn.dataset.value);
 });
 
+// 共用小工具：從底部滑出的表單（新增交易／加入追蹤都用這個），統一開關邏輯，
+// 確保狀態變數（addOpen/watchOpen）跟畫面上的開關永遠一致。
+function toggleSheet(panelId, backdropId, open) {
+  const panel = document.getElementById(panelId), backdrop = document.getElementById(backdropId);
+  if (panel) panel.classList.toggle("open", open);
+  if (backdrop) backdrop.classList.toggle("open", open);
+}
+function sheetMarkup(panelId, backdropId) {
+  return `<div class="sheet-backdrop" id="${backdropId}"></div><div class="sheet-panel" id="${panelId}"></div>`;
+}
+
 // ------------------------------------------------------------------
 // 📦 我的持股：清單頁
 // ------------------------------------------------------------------
@@ -335,7 +346,8 @@ function renderAddForm() {
       <button type="button" class="btn-submit" data-seg-btn="submit" data-value="dividend">💵 記錄配息</button>
       <div id="addFormMsg"></div>`;
   }
-  return `<p class="form-hint">先選類型 → 選/填股票 → 填細節。會自動更新持股、已實現損益，並記進交易筆記。</p>
+  return `<div class="sheet-handle"></div>
+    <p class="form-hint">先選類型 → 選/填股票 → 填細節。會自動更新持股、已實現損益，並記進交易筆記。</p>
     ${typeSeg}${body}`;
 }
 
@@ -402,9 +414,14 @@ async function submitTransaction(kind) {
     const j = await res.json();
     if (!res.ok) throw new Error(apiErrorMessage(j, "送出失敗"));
     msgEl.innerHTML = `<div class="form-success">✅ ${esc(j.message)}</div>`;
-    addOpen = false;
     await loadHoldData(true);
-    rerenderHoldBody();
+    // 先讓成功訊息留在表單上一下子，再關閉並刷新列表，不然訊息會被 rerenderHoldBody
+    // 重畫表單的動作瞬間蓋掉，使用者完全看不到剛剛送出成功。
+    setTimeout(() => {
+      addOpen = false;
+      toggleSheet("addTxPanel", "addTxBackdrop", false);
+      rerenderHoldBody();
+    }, 700);
   } catch (err) {
     msgEl.innerHTML = `<div class="form-error">${esc(err.message)}</div>`;
   }
@@ -447,17 +464,19 @@ function rerenderHoldBody() {
 
 async function renderHoldList() {
   const app = document.getElementById("app");
-  const addBtn = `<div class="popover-wrap">
-    <button class="btn-circle-glass" id="addTxBtn">+</button>
-    <div class="popover-panel${addOpen ? " open" : ""}" id="addTxPanel"></div>
-  </div>`;
+  const addBtn = `<button class="btn-circle-glass" id="addTxBtn">+</button>`;
   app.innerHTML = renderHeader("📦 我的持股", addBtn) +
-    `<div id="holdBody">${skeletonList()}</div>` + renderBottomNav("hold");
+    `<div id="holdBody">${skeletonList()}</div>` + renderBottomNav("hold") +
+    sheetMarkup("addTxPanel", "addTxBackdrop");
   bindHeaderEvents();
   document.getElementById("addTxBtn").addEventListener("click", () => {
     addOpen = !addOpen;
-    document.getElementById("addTxPanel").classList.toggle("open", addOpen);
+    toggleSheet("addTxPanel", "addTxBackdrop", addOpen);
     if (addOpen) rerenderAddPanel();
+  });
+  document.getElementById("addTxBackdrop").addEventListener("click", () => {
+    addOpen = false;
+    toggleSheet("addTxPanel", "addTxBackdrop", false);
   });
 
   await loadHoldData();
@@ -611,7 +630,8 @@ async function loadChart(symbol) {
 let watchOpen = false;
 
 function renderWatchForm() {
-  return `<p class="form-hint">先填代號 → 選填目標買價／備註。</p>
+  return `<div class="sheet-handle"></div>
+    <p class="form-hint">先填代號 → 選填目標買價／備註。</p>
     <div class="form-field"><label>代號</label><input type="text" id="f_watch_symbol" style="text-transform:uppercase"></div>
     <div class="form-field"><label>目標買價（選填）</label><input type="number" id="f_watch_target" min="0" step="any"></div>
     <div class="form-field"><label>備註（選填）</label><input type="text" id="f_watch_note"></div>
@@ -637,10 +657,13 @@ async function submitWatch() {
       return;
     }
     msgEl.innerHTML = `<div class="form-success">✅ ${esc(j.message)}</div>`;
-    watchOpen = false;
     watchData = null;
     await loadWatchData();
     rerenderWatchBody();
+    setTimeout(() => {
+      watchOpen = false;
+      toggleSheet("addWatchPanel", "addWatchBackdrop", false);
+    }, 700);
   } catch (err) {
     msgEl.innerHTML = `<div class="form-error">${esc(err.message)}</div>`;
   }
@@ -822,18 +845,19 @@ bindWatchGestures();
 
 async function renderWatchList() {
   const app = document.getElementById("app");
-  const addBtn = `<div class="popover-wrap">
-    <button class="btn-circle-glass" id="addWatchBtn">+</button>
-    <div class="popover-panel${watchOpen ? " open" : ""}" id="addWatchPanel"></div>
-  </div>`;
+  const addBtn = `<button class="btn-circle-glass" id="addWatchBtn">+</button>`;
   app.innerHTML = renderHeader("👀 追蹤清單", addBtn) +
-    `<div id="watchBody">${skeletonList()}</div>` + renderBottomNav("watch");
+    `<div id="watchBody">${skeletonList()}</div>` + renderBottomNav("watch") +
+    sheetMarkup("addWatchPanel", "addWatchBackdrop");
   bindHeaderEvents();
   document.getElementById("addWatchBtn").addEventListener("click", () => {
     watchOpen = !watchOpen;
-    const panel = document.getElementById("addWatchPanel");
-    panel.classList.toggle("open", watchOpen);
-    if (watchOpen) panel.innerHTML = renderWatchForm();
+    toggleSheet("addWatchPanel", "addWatchBackdrop", watchOpen);
+    if (watchOpen) document.getElementById("addWatchPanel").innerHTML = renderWatchForm();
+  });
+  document.getElementById("addWatchBackdrop").addEventListener("click", () => {
+    watchOpen = false;
+    toggleSheet("addWatchPanel", "addWatchBackdrop", false);
   });
 
   await loadWatchData();
@@ -1247,5 +1271,83 @@ document.addEventListener("click", e => {
   }
 });
 
+// 下拉刷新：在頁面最頂端往下拉，放開就重抓當前這頁的資料並重繪，
+// 不像整顆快取清空鈕那樣拖累全站，只重抓看得到的這一頁。
+async function pullToRefreshCurrentPage() {
+  const nav = qs("nav", "home");
+  if (nav === "hold" && !qs("sym", null)) holdData = null;
+  if (nav === "watch") watchData = null;
+  if (nav === "stats") statsCache = {};
+  return render();
+}
+
+function bindPullRefresh() {
+  const EXCLUDE = ".js-plotly-plot, .plotly-chart-wrap, .watch-row-wrap";
+  const THRESH = 72;
+  let sx = 0, sy = 0, dy = 0, active = false, deciding = true, pulling = false, refreshing = false;
+  let indicator = null;
+
+  function ensureIndicator() {
+    if (indicator) return indicator;
+    indicator = document.createElement("div");
+    indicator.className = "pull-indicator";
+    indicator.innerHTML = `<span class="arrow">↓</span>`;
+    document.body.appendChild(indicator);
+    return indicator;
+  }
+
+  document.addEventListener("touchstart", e => {
+    if (refreshing || e.target.closest(EXCLUDE)) { active = false; return; }
+    const t = e.touches[0];
+    sx = t.clientX; sy = t.clientY; dy = 0;
+    active = window.scrollY <= 2;
+    deciding = true; pulling = false;
+  }, { passive: true });
+
+  document.addEventListener("touchmove", e => {
+    if (!active || refreshing) return;
+    const t = e.touches[0];
+    const rawDx = t.clientX - sx, rawDy = t.clientY - sy;
+    if (deciding) {
+      if (Math.abs(rawDx) < 8 && Math.abs(rawDy) < 8) return;
+      pulling = rawDy > 0 && rawDy > Math.abs(rawDx) * 1.3 && window.scrollY <= 2;
+      deciding = false;
+      if (!pulling) { active = false; return; }
+    }
+    dy = Math.max(0, rawDy);
+    const el = ensureIndicator();
+    const damped = Math.min(90, dy * 0.5);
+    el.style.opacity = String(Math.min(1, damped / 36));
+    el.style.transform = `translateY(${-60 + damped}px)`;
+    el.querySelector(".arrow").style.transform = `rotate(${Math.min(180, (dy / THRESH) * 180)}deg)`;
+    e.preventDefault();
+  }, { passive: false });
+
+  document.addEventListener("touchend", async () => {
+    if (!pulling) { active = false; return; }
+    active = false; pulling = false;
+    const el = ensureIndicator();
+    if (dy > THRESH) {
+      refreshing = true;
+      el.classList.add("spinning");
+      el.style.opacity = "1";
+      el.style.transform = "translateY(15px)";
+      el.querySelector(".arrow").style.transform = "";
+      try {
+        await pullToRefreshCurrentPage();
+      } finally {
+        refreshing = false;
+        el.classList.remove("spinning");
+        el.style.opacity = "0";
+        el.style.transform = "translateY(-60px)";
+      }
+    } else {
+      el.style.opacity = "0";
+      el.style.transform = "translateY(-60px)";
+    }
+  }, { passive: true });
+}
+
 bindSwipeNav();
+bindPullRefresh();
 render();
