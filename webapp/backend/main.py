@@ -756,6 +756,8 @@ def warm_cache():
             mk.portfolio_value_series(ht, period, interval)
 
     mk.get_usdtwd()
+    mk.get_indices()
+    mk.get_market_news(4)
     return {"ok": True, "symbols_warmed": len(all_syms)}
 
 

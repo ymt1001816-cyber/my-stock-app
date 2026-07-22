@@ -3,6 +3,7 @@
    全部為機械式規則計算，不構成投資建議。"""
 
 import math
+from concurrent.futures import ThreadPoolExecutor
 
 import market as mk
 
@@ -200,11 +201,14 @@ def generate_briefing(rows, usdtwd=0, watch_syms=None) -> str:
     if not movers:
         out.append(_bcard("今天沒有漲跌超過 3% 的持股，整體平穩 👍", cc=_GREEN))
     else:
-        for r in movers:
+        # limit=4 才會跟 /api/_warm_cache 用同一組快取鍵，不然每次都要重新現抓，很慢；
+        # 平行抓也是因為同樣的原因——就算真的沒中快取，也不用一支一支排隊等。
+        with ThreadPoolExecutor(max_workers=min(6, len(movers))) as ex:
+            mover_news = list(ex.map(lambda r: mk.get_news(r["symbol"], 4), movers))
+        for r, news in zip(movers, mover_news):
             up = r["day_pct"] > 0
             cc = _GREEN if up else _RED
             d = "大漲" if up else "大跌"
-            news = mk.get_news(r["symbol"], 1)
             headline = news[0]["title"] if news else "（暫無相關新聞）"
             title = (f"{r['symbol']} <span style='color:{cc};font-weight:800'>"
                      f"今日{d} {r['day_pct']:+.1f}%</span>")
@@ -212,19 +216,20 @@ def generate_briefing(rows, usdtwd=0, watch_syms=None) -> str:
 
     # 3) 值得關注的股票
     out.append(_sec("🎯 值得關注的股票"))
-    watch_syms = watch_syms or []
-    if watch_syms:
-        for s in watch_syms[:6]:
-            q = mk.get_light(s)
+    watch_syms = (watch_syms or [])[:6]
+    if not watch_syms:
+        out.append(_bcard("你的追蹤清單是空的",
+                          "到「👀 追蹤清單」加入想買的股票，這裡每天就會幫你盯著＋附上新聞。"))
+    else:
+        with ThreadPoolExecutor(max_workers=min(6, len(watch_syms))) as ex:
+            quotes = list(ex.map(mk.get_light, watch_syms))
+            watch_news = list(ex.map(lambda s: mk.get_news(s, 4), watch_syms))
+        for s, q, news in zip(watch_syms, quotes, watch_news):
             trend = ("多頭趨勢" if (q["ma50"] and q["ma200"] and q["price"] > q["ma50"] > q["ma200"])
                      else "偏弱" if (q["ma200"] and q["price"] < q["ma200"]) else "區間整理")
-            news = mk.get_news(s, 1)
             headline = news[0]["title"] if news else "（暫無相關新聞）"
             title = (f"{s} 現價 &#36;{q['price']:,.2f}（今日 {q['change_pct']:+.1f}%）· {trend}")
             out.append(_bcard(title, headline))
-    else:
-        out.append(_bcard("你的追蹤清單是空的",
-                          "到「👀 追蹤清單」加入想買的股票，這裡每天就會幫你盯著＋附上新聞。"))
 
     # 4) 我的組合摘要
     if rows:
