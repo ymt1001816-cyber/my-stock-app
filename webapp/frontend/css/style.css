@@ -3,7 +3,7 @@
 :root{
   --ink:#1e1e20; --sub:#6b7280; --line:rgba(17,24,39,.08);
   --card:#ffffff; --card2:#f3f4f6;
-  --accent:#dba53f; --accent-dk:#b8802a; --accent-lt:#f3ddb0;
+  --accent:#f2941f; --accent-dk:#c96e0a; --accent-lt:#fbdca3;
   --green:#18a558; --red:#e0405a;
   --r-sm:12px; --r-md:16px; --r-lg:22px; --r-xl:26px;
   --sh-sm:0 1px 3px rgba(17,24,39,.07);
@@ -125,7 +125,7 @@ button{font-family:inherit;cursor:pointer}
 /* 長按拖曳排序：整列浮起，明顯區別於一般列 */
 .watch-row-wrap.reordering{position:relative}
 .watch-row-wrap.reordering .hitem{box-shadow:var(--sh-lg);transform:scale(1.03);
-  border-color:rgba(219,165,63,.4)}
+  border-color:rgba(242,148,31,.4)}
 
 /* 券商風格持倉列 */
 .hlink{text-decoration:none;color:inherit;display:block}
@@ -133,7 +133,7 @@ button{font-family:inherit;cursor:pointer}
   background:var(--card);padding:12px 14px;margin-bottom:8px;border-radius:var(--r-md);
   border:1px solid var(--line);box-shadow:var(--sh-sm);
   transition:box-shadow .2s,transform .2s var(--bounce),border-color .2s}
-.hitem:hover{box-shadow:var(--sh-md);transform:translateY(-2px) scale(1.008);border-color:rgba(219,165,63,.38)}
+.hitem:hover{box-shadow:var(--sh-md);transform:translateY(-2px) scale(1.008);border-color:rgba(242,148,31,.38)}
 .hitem:active{transform:scale(.98)}
 .nm{font-weight:800;font-size:1.04rem;line-height:1.2;color:var(--ink)}
 .sub{color:var(--sub);font-size:.78rem}
@@ -156,7 +156,7 @@ button{font-family:inherit;cursor:pointer}
   background:var(--card);border:1px solid var(--line);border-radius:var(--r-sm);
   padding:9px 13px;margin-bottom:7px;box-shadow:var(--sh-sm);
   transition:box-shadow .2s,transform .2s var(--bounce),border-color .2s}
-.nrow:hover{box-shadow:var(--sh-md);transform:translateY(-2px) scale(1.008);border-color:rgba(219,165,63,.38)}
+.nrow:hover{box-shadow:var(--sh-md);transform:translateY(-2px) scale(1.008);border-color:rgba(242,148,31,.38)}
 .nrow-t{font-weight:700;font-size:.92rem;line-height:1.35;color:var(--ink)}
 .nrow-m{color:var(--sub);font-size:.72rem;margin-top:4px}
 
@@ -198,8 +198,8 @@ button{font-family:inherit;cursor:pointer}
   border-radius:14px;transition:background .2s,transform .2s var(--bounce);background:none;border:none}
 .navlink:hover{background:var(--card2);transform:translateY(-1px)}
 .navlink:active{transform:scale(.9)}
-.navlink.active{background:linear-gradient(180deg,rgba(219,165,63,.20),rgba(219,165,63,.07));
-  box-shadow:inset 0 0 0 1px rgba(219,165,63,.25)}
+.navlink.active{background:linear-gradient(180deg,rgba(242,148,31,.20),rgba(242,148,31,.07));
+  box-shadow:inset 0 0 0 1px rgba(242,148,31,.25)}
 .navlink .ic{font-size:1.55rem;line-height:1.1;transition:transform .25s var(--bounce)}
 .navlink.active .ic{transform:scale(1.14)}
 #app{padding-bottom:84px}
@@ -224,7 +224,7 @@ button{font-family:inherit;cursor:pointer}
 .seg-btn:hover{transform:translateY(-1px);box-shadow:var(--sh-sm)}
 .seg-btn:active{transform:scale(.94)}
 .seg-btn.active{color:var(--accent-dk);border-color:var(--accent);
-  background:linear-gradient(180deg,rgba(219,165,63,.16),rgba(219,165,63,.05))}
+  background:linear-gradient(180deg,rgba(242,148,31,.16),rgba(242,148,31,.05))}
 
 /* 持股列表：一列可點進去看詳細 */
 .hitem-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -244,7 +244,7 @@ button{font-family:inherit;cursor:pointer}
 .form-row{display:flex;gap:8px}
 .form-row>.form-field{flex:1;min-width:0}
 .btn-submit{width:100%;padding:11px;border-radius:999px;border:none;font-weight:800;
-  font-size:.95rem;color:#fff;background:linear-gradient(135deg,#c99a3c,#a97c28);
+  font-size:.95rem;color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent-dk));
   box-shadow:var(--sh-sm);margin-top:4px;transition:transform .2s var(--bounce)}
 .btn-submit:active{transform:scale(.97)}
 .form-hint{color:var(--sub);font-size:.8rem;margin:0 0 10px}
