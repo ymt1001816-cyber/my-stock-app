@@ -1,7 +1,7 @@
 // 我的美股投資中心 —— 前端主程式（純 vanilla JS，無框架）
-const GREEN = "#4a9a6c";
-const RED = "#c26661";
-const GREY = "#94907f";
+const GREEN = "#18a558";
+const RED = "#e0405a";
+const GREY = "#6b7280";
 const ORANGE = "#d9822b";
 
 const NAV = [
@@ -38,7 +38,7 @@ function logoImg(symbol, size, radius, url) {
 }
 function logoWrap(symbol, size, radius, extraStyle = "", url) {
   return `<div style="width:${size}px;height:${size}px;flex:0 0 auto;border-radius:${radius}px;
-    background:#d9d7cc;border:1px solid #c3c1b3;overflow:hidden;${extraStyle}">
+    background:#eceef1;border:1px solid #dde1e6;overflow:hidden;${extraStyle}">
     ${logoImg(symbol, size, radius, url)}</div>`;
 }
 
@@ -156,7 +156,7 @@ async function renderHome() {
   if (s.total_mv_usd) {
     const bar = s.allocation.map(a => `<span style="width:${a.pct.toFixed(2)}%;background:${a.color}"></span>`).join("");
     const legend = s.allocation.map(a => `<div class="legend"><span><span class="dot" style="background:${a.color}"></span>${esc(a.name)}</span>
-      <span><b>${mh(a.value_usd)}</b>　<span style="color:#8a8983">${a.pct.toFixed(1)}%</span></span></div>`).join("");
+      <span><b>${mh(a.value_usd)}</b>　<span style="color:#6b7280">${a.pct.toFixed(1)}%</span></span></div>`).join("");
     allocHtml = sec("📊 資產配置") + `<div class="alloccard"><div class="allocbar">${bar}</div>${legend}</div>`;
   }
 
@@ -403,7 +403,7 @@ function rerenderHoldBody() {
   body.innerHTML = segGroup("holdsort", [
     { key: "mv", label: "市值" }, { key: "symbol", label: "代號 A→Z" }, { key: "day_pct", label: "單日漲跌" },
   ], holdSort) +
-  `<div style="display:flex;justify-content:space-between;color:#8a8983;font-size:.76rem;padding:0 4px 6px">
+  `<div style="display:flex;justify-content:space-between;color:#6b7280;font-size:.76rem;padding:0 4px 6px">
     <span>持倉 · ${rows.length} 檔</span><span>損益金額　·　報酬率</span></div>` +
   rows.map(r => stockRowHtml(r)).join("") +
   `<p class="hint">👆 點任一列看個股詳細（走勢圖、盤前盤後、財報、建議）</p>` + renderFooter();
@@ -627,10 +627,10 @@ function rerenderWatchBody() {
     return;
   }
   body.innerHTML =
-    `<div style="display:flex;justify-content:space-between;color:#8a8983;font-size:.76rem;padding:0 4px 6px">
+    `<div style="display:flex;justify-content:space-between;color:#6b7280;font-size:.76rem;padding:0 4px 6px">
       <span>觀察 · ${watchData.rows.length} 檔</span><span>現價　·　單日漲跌</span></div>` +
     watchData.rows.map(watchRowHtml).join("") +
-    `<p class="hint">👆 點任一列看個股詳細　·　👈 向左滑到底可移除追蹤</p>` + renderFooter();
+    `<p class="hint">👆 點看詳細　·　👈 左滑到底移除　·　長按拖曳排序</p>` + renderFooter();
 }
 
 function watchRowHtml(w) {
@@ -656,54 +656,136 @@ async function deleteWatchSymbol(symbol) {
   }
 }
 
-// 追蹤清單一列往右滑到底＝移除（不用另外點確認鈕，滑到底這個動作本身就是確認）。
-// 滑不到底放開就彈回原位。跟左右換頁的手勢用同一組 touch 事件，所以這裡偵測到
-// 是在 .watch-row-wrap 上開始拖曳時，要蓋掉全域換頁那組手勢（見 bindSwipeNav 的排除清單）。
-function bindWatchSwipe() {
-  let dragEl = null, startX = 0, startY = 0, dx = 0, width = 1, deciding = true, isSwipe = false;
+async function saveWatchOrder(order) {
+  if (watchData && watchData.rows) {
+    const map = new Map(watchData.rows.map(r => [r.symbol, r]));
+    watchData.rows = order.map(s => map.get(s)).filter(Boolean);
+  }
+  try {
+    const res = await fetch("/api/watchlist/reorder", { method: "PUT",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify({ symbols: order }) });
+    if (!res.ok) throw new Error("順序儲存失敗");
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+// 追蹤清單一列的手勢統一在這裡處理，兩種手勢共用同一組 touch 事件才不會互相打架：
+//   · 快速左右滑＝往左滑到底刪除（原本就有）
+//   · 按住不放（長按）＝進入拖曳排序模式，上下移動可調整順序
+// 跟左右換頁的手勢也是同一組 touch 事件，所以這裡偵測到是在 .watch-row-wrap 上
+// 開始拖曳時，要蓋掉全域換頁那組手勢（見 bindSwipeNav 的排除清單）。
+const LONG_PRESS_MS = 420;
+let suppressWatchTapNav = false;
+function bindWatchGestures() {
+  let wrap = null, content = null;
+  let startX = 0, startY = 0, dx = 0, width = 1, grabOffset = 0;
+  let mode = "idle"; // idle | deciding | swipe | reorder
+  let pressTimer = null;
+
+  function cleanup() {
+    clearTimeout(pressTimer);
+    if (content) content.classList.remove("dragging");
+    if (wrap) { wrap.classList.remove("reordering"); wrap.style.zIndex = ""; }
+    wrap = content = null; mode = "idle";
+  }
+
+  function enterReorderMode() {
+    const r = wrap.getBoundingClientRect();
+    grabOffset = startY - (r.top + r.height / 2);
+    wrap.classList.add("reordering");
+    wrap.style.zIndex = "50";
+    suppressWatchTapNav = true;
+    if (navigator.vibrate) navigator.vibrate(12);
+  }
 
   document.addEventListener("touchstart", e => {
-    const wrap = e.target.closest(".watch-row-wrap");
-    if (!wrap) { dragEl = null; return; }
-    dragEl = wrap.querySelector(".watch-row-content");
+    const w = e.target.closest(".watch-row-wrap");
+    if (!w) { cleanup(); return; }
+    wrap = w; content = w.querySelector(".watch-row-content");
     const t = e.touches[0];
     startX = t.clientX; startY = t.clientY; dx = 0;
-    width = wrap.getBoundingClientRect().width;
-    deciding = true; isSwipe = false;
-    dragEl.classList.add("dragging");
+    width = w.getBoundingClientRect().width;
+    mode = "deciding";
+    content.classList.add("dragging");
+    pressTimer = setTimeout(() => {
+      if (mode === "deciding") { mode = "reorder"; enterReorderMode(); }
+    }, LONG_PRESS_MS);
   }, { passive: true });
 
   document.addEventListener("touchmove", e => {
-    if (!dragEl) return;
+    if (!wrap) return;
     const t = e.touches[0];
     const rawDx = t.clientX - startX, rawDy = t.clientY - startY;
-    if (deciding) {
+
+    if (mode === "deciding") {
       if (Math.abs(rawDx) < 8 && Math.abs(rawDy) < 8) return;
-      isSwipe = Math.abs(rawDx) > Math.abs(rawDy) * 1.3;
-      deciding = false;
-      if (!isSwipe) { dragEl.classList.remove("dragging"); dragEl = null; return; }
+      clearTimeout(pressTimer);
+      if (Math.abs(rawDx) > Math.abs(rawDy) * 1.3) { mode = "swipe"; }
+      else { cleanup(); return; }
     }
-    if (!isSwipe) return;
-    dx = Math.max(0, -rawDx);
-    dragEl.style.transform = `translateX(${-dx}px)`;
-    e.preventDefault();
+
+    if (mode === "swipe") {
+      dx = Math.max(0, -rawDx);
+      content.style.transform = `translateX(${-dx}px)`;
+      e.preventDefault();
+      return;
+    }
+
+    if (mode === "reorder") {
+      e.preventDefault();
+      const parent = wrap.parentElement;
+      const draggedCenter = t.clientY - grabOffset;
+      wrap.style.transform = "none";
+      const natural = wrap.getBoundingClientRect();
+      wrap.style.transform = `translateY(${draggedCenter - (natural.top + natural.height / 2)}px)`;
+
+      const list = [...parent.children];
+      const idx = list.indexOf(wrap);
+      const prev = list[idx - 1];
+      if (prev) {
+        const pr = prev.getBoundingClientRect();
+        if (draggedCenter < pr.top + pr.height * 0.5) parent.insertBefore(wrap, prev);
+      }
+      const next = list[idx + 1];
+      if (next) {
+        const nr = next.getBoundingClientRect();
+        if (draggedCenter > nr.top + nr.height * 0.5) parent.insertBefore(wrap, next.nextSibling);
+      }
+    }
   }, { passive: false });
 
   document.addEventListener("touchend", () => {
-    if (!dragEl || !isSwipe) { dragEl = null; return; }
-    dragEl.classList.remove("dragging");
-    const symbol = dragEl.parentElement.dataset.symbol;
-    if (dx > width * 0.65) {
-      dragEl.style.transform = `translateX(${-width}px)`;
-      dragEl.style.opacity = "0";
-      setTimeout(() => deleteWatchSymbol(symbol), 180);
-    } else {
-      dragEl.style.transform = "translateX(0)";
+    if (!wrap) return;
+    if (mode === "swipe") {
+      content.classList.remove("dragging");
+      const symbol = wrap.dataset.symbol;
+      if (dx > width * 0.65) {
+        content.style.transform = `translateX(${-width}px)`;
+        content.style.opacity = "0";
+        setTimeout(() => deleteWatchSymbol(symbol), 180);
+      } else {
+        content.style.transform = "translateX(0)";
+      }
+      wrap = content = null; mode = "idle";
+      return;
     }
-    dragEl = null;
+    if (mode === "reorder") {
+      const parent = wrap.parentElement;
+      const order = [...parent.querySelectorAll(".watch-row-wrap")].map(el => el.dataset.symbol);
+      wrap.style.transition = "transform .22s var(--bounce)";
+      wrap.style.transform = "none";
+      wrap.classList.remove("reordering");
+      const w = wrap;
+      setTimeout(() => { w.style.transition = ""; w.style.zIndex = ""; }, 230);
+      wrap = content = null; mode = "idle";
+      saveWatchOrder(order);
+      return;
+    }
+    cleanup();
   }, { passive: true });
 }
-bindWatchSwipe();
+bindWatchGestures();
 
 async function renderWatchList() {
   const app = document.getElementById("app");
@@ -1037,13 +1119,36 @@ function bindSwipeNav() {
     if (i < 0) i = 0;
     const next = dx < 0 ? i + 1 : i - 1;
     if (next < 0 || next >= order.length) return;
-    navigateTo(`?nav=${order[next]}`);
+    slideNavTo(`?nav=${order[next]}`, dx < 0 ? "left" : "right");
   }, { passive: true });
+}
+
+// 換頁時給個看得到的滑動＋淡出淡入，取代原本瞬間切換（不然滑動手勢感覺不到有反應）。
+function slideNavTo(url, dir) {
+  const app = document.getElementById("app");
+  const outX = dir === "left" ? "-36px" : "36px";
+  app.style.transition = "transform .15s ease-in, opacity .15s ease-in";
+  app.style.transform = `translateX(${outX})`;
+  app.style.opacity = "0";
+  setTimeout(() => {
+    navigateTo(url);
+    const inX = dir === "left" ? "36px" : "-36px";
+    app.style.transition = "none";
+    app.style.transform = `translateX(${inX})`;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        app.style.transition = "transform .32s var(--bounce), opacity .24s";
+        app.style.transform = "translateX(0)";
+        app.style.opacity = "1";
+      });
+    });
+  }, 150);
 }
 
 // 攔截站內連結（href 以 "?" 開頭的都是我們自己的分頁/詳細頁連結），
 // 改用 SPA 換頁而不是整頁重新載入；外部連結（新聞等）不受影響照常開新分頁。
 document.addEventListener("click", e => {
+  if (suppressWatchTapNav) { suppressWatchTapNav = false; e.preventDefault(); e.stopPropagation(); return; }
   const a = e.target.closest("a");
   if (!a) return;
   const href = a.getAttribute("href");

@@ -1,21 +1,21 @@
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
 
 :root{
-  --ink:#2b2b28; --sub:#87867e; --line:rgba(40,38,30,.11);
-  --card:#ffffff; --card2:#f1f0ec;
+  --ink:#1e1e20; --sub:#6b7280; --line:rgba(17,24,39,.08);
+  --card:#ffffff; --card2:#f3f4f6;
   --accent:#dba53f; --accent-dk:#b8802a; --accent-lt:#f3ddb0;
-  --green:#3f9668; --red:#c1685f;
+  --green:#18a558; --red:#e0405a;
   --r-sm:12px; --r-md:16px; --r-lg:22px; --r-xl:26px;
-  --sh-sm:0 1px 3px rgba(40,38,30,.08);
-  --sh-md:0 3px 10px rgba(40,38,30,.09), 0 1px 3px rgba(40,38,30,.07);
-  --sh-lg:0 14px 32px -8px rgba(30,28,22,.20), 0 2px 8px rgba(30,28,22,.08);
+  --sh-sm:0 1px 3px rgba(17,24,39,.07);
+  --sh-md:0 3px 10px rgba(17,24,39,.08), 0 1px 3px rgba(17,24,39,.06);
+  --sh-lg:0 14px 32px -8px rgba(15,23,42,.18), 0 2px 8px rgba(15,23,42,.07);
   --bounce:cubic-bezier(.34,1.56,.64,1);
 }
 *{box-sizing:border-box}
 body{margin:0;background:
-  radial-gradient(1100px 520px at 12% -8%, #f8f7f4 0%, transparent 60%),
-  radial-gradient(900px 480px at 100% 0%, #f4f2ec 0%, transparent 55%),
-  #ececea;
+  radial-gradient(1100px 520px at 12% -8%, #ffffff 0%, transparent 60%),
+  radial-gradient(900px 480px at 100% 0%, #f7f8fa 0%, transparent 55%),
+  #eef0f3;
   font-family:'Noto Sans TC',-apple-system,'Segoe UI','PingFang TC','Microsoft JhengHei',sans-serif;
   font-size:15px;color:var(--ink)}
 #app{max-width:1080px;margin:0 auto;
@@ -117,8 +117,13 @@ button{font-family:inherit;cursor:pointer}
   display:flex;align-items:center;justify-content:flex-end;padding-right:22px;
   font-weight:800;font-size:.92rem}
 .watch-row-content{position:relative;touch-action:pan-y;
-  transition:transform .25s var(--bounce),opacity .18s}
+  transition:transform .3s var(--bounce),opacity .22s}
 .watch-row-content.dragging{transition:none}
+
+/* 長按拖曳排序：整列浮起，明顯區別於一般列 */
+.watch-row-wrap.reordering{position:relative}
+.watch-row-wrap.reordering .hitem{box-shadow:var(--sh-lg);transform:scale(1.03);
+  border-color:rgba(219,165,63,.4)}
 
 /* 券商風格持倉列 */
 .hlink{text-decoration:none;color:inherit;display:block}
@@ -157,7 +162,7 @@ button{font-family:inherit;cursor:pointer}
 .bcard{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--line);
   border-radius:var(--r-md);padding:11px 15px;margin:8px 0;box-shadow:var(--sh-sm)}
 .bcard .t{font-weight:800;font-size:.98rem;color:var(--ink)}
-.bcard .s{color:#5c5b56;font-size:.86rem;margin-top:4px;line-height:1.4}
+.bcard .s{color:#586071;font-size:.86rem;margin-top:4px;line-height:1.4}
 
 /* 統計摘要合併卡片 */
 .statsummary{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);
@@ -223,7 +228,7 @@ button{font-family:inherit;cursor:pointer}
 .hitem-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .hitem-left{display:flex;align-items:center;gap:10px;min-width:0}
 .hitem-logo{width:36px;height:36px;border-radius:9px;flex:0 0 auto;
-  background:#d9d7cc center/78% no-repeat;border:1px solid #c3c1b3}
+  background:#eceef1 center/78% no-repeat;border:1px solid #dde1e6}
 .hitem-name{min-width:0}
 .hitem-right{text-align:right;flex:0 0 auto}
 

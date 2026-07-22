@@ -546,6 +546,21 @@ def remove_watchlist(symbol: str):
     return {"ok": True, "message": f"已移除 {s}。"}
 
 
+class ReorderIn(BaseModel):
+    symbols: list[str]
+
+
+@app.put("/api/watchlist/reorder")
+def reorder_watchlist(body: ReorderIn):
+    nw = load_watch()
+    order = [s.upper().strip() for s in body.symbols]
+    if set(order) != set(nw["symbol"].values) or len(order) != len(nw):
+        raise HTTPException(400, "順序清單與追蹤清單不一致。")
+    nw = nw.set_index("symbol").loc[order].reset_index()
+    save_watch(nw)
+    return {"ok": True}
+
+
 @app.post("/api/transactions/dividend")
 def transaction_dividend(body: DividendIn):
     s = body.symbol.upper().strip()
