@@ -1,3 +1,13 @@
+// 淺色/深色模式的格線、座標文字、十字準線顏色不一樣，畫布是純手畫的，
+// 沒辦法用 CSS 變數，只能在畫的當下自己判斷一次系統主題。
+function chartTheme() {
+  const dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#f2941f";
+  return dark
+    ? { grid: "rgba(255,255,255,.10)", axisText: "#9aa1ac", crosshair: "rgba(255,255,255,.28)", dotStroke: "#1c1e22", hoverBar: accent }
+    : { grid: "#eef1f4", axisText: "#6b7280", crosshair: "rgba(30,30,32,.25)", dotStroke: "#fff", hoverBar: accent };
+}
+
 // 輕量走勢圖：純 canvas 畫線，不用任何圖表庫。
 // 需求：拿掉縮放/拖曳功能，改成點/觸碰一下就顯示對應日期與數值。
 function drawLineChart(container, points, { color, fillColor, moneyFmt }) {
@@ -35,13 +45,14 @@ function drawLineChart(container, points, { color, fillColor, moneyFmt }) {
   const yAt = v => padT + (1 - (v - lo) / (hi - lo)) * plotH;
 
   function paint(hoverIdx) {
+    const theme = chartTheme();
     ctx.clearRect(0, 0, cssW, cssH);
 
     // y 軸網格線（右側刻度，跟原本 Plotly 版一致）
-    ctx.strokeStyle = "#eef1f4";
+    ctx.strokeStyle = theme.grid;
     ctx.lineWidth = 1;
     ctx.font = "11px -apple-system,'Segoe UI',sans-serif";
-    ctx.fillStyle = "#87867e";
+    ctx.fillStyle = theme.axisText;
     ctx.textAlign = "left";
     const gridN = 4;
     for (let g = 0; g <= gridN; g++) {
@@ -75,14 +86,14 @@ function drawLineChart(container, points, { color, fillColor, moneyFmt }) {
       const x = xAt(hoverIdx), y = yAt(points[hoverIdx].v);
       ctx.beginPath();
       ctx.moveTo(x, padT); ctx.lineTo(x, padT + plotH);
-      ctx.strokeStyle = "rgba(43,43,40,.25)";
+      ctx.strokeStyle = theme.crosshair;
       ctx.lineWidth = 1;
       ctx.stroke();
       ctx.beginPath();
       ctx.arc(x, y, 4.5, 0, Math.PI * 2);
       ctx.fillStyle = color;
       ctx.fill();
-      ctx.lineWidth = 2; ctx.strokeStyle = "#fff"; ctx.stroke();
+      ctx.lineWidth = 2; ctx.strokeStyle = theme.dotStroke; ctx.stroke();
     }
   }
   paint(null);
@@ -161,11 +172,12 @@ function drawBarChart(container, points, { posColor, negColor, moneyFmt }) {
   const zeroY = yAt(0);
 
   function paint(hoverIdx) {
+    const theme = chartTheme();
     ctx.clearRect(0, 0, cssW, cssH);
-    ctx.strokeStyle = "#eef1f4";
+    ctx.strokeStyle = theme.grid;
     ctx.lineWidth = 1;
     ctx.font = "11px -apple-system,'Segoe UI',sans-serif";
-    ctx.fillStyle = "#87867e";
+    ctx.fillStyle = theme.axisText;
     for (let g = 0; g <= 4; g++) {
       const v = lo + (hi - lo) * (g / 4);
       const y = yAt(v);
@@ -176,7 +188,7 @@ function drawBarChart(container, points, { posColor, negColor, moneyFmt }) {
       const x = padL + slot * i + (slot - barW) / 2;
       const y = yAt(p.v);
       const top = Math.min(y, zeroY), h = Math.abs(y - zeroY) || 1;
-      ctx.fillStyle = i === hoverIdx ? "#dba53f" : (p.v >= 0 ? posColor : negColor);
+      ctx.fillStyle = i === hoverIdx ? theme.hoverBar : (p.v >= 0 ? posColor : negColor);
       ctx.fillRect(x, top, barW, h);
     });
   }

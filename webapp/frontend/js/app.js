@@ -38,8 +38,41 @@ function logoImg(symbol, size, radius, url) {
 }
 function logoWrap(symbol, size, radius, extraStyle = "", url) {
   return `<div style="width:${size}px;height:${size}px;flex:0 0 auto;border-radius:${radius}px;
-    background:#eceef1;border:1px solid #dde1e6;overflow:hidden;${extraStyle}">
+    background:var(--logo-bg);border:1px solid var(--logo-border);overflow:hidden;${extraStyle}">
     ${logoImg(symbol, size, radius, url)}</div>`;
+}
+
+// 骨架屏：等 API 資料回來之前先畫出跟真實內容差不多形狀的灰色色塊，
+// 取代純文字「載入中」，感覺比較像原生 app 在讀資料，而不是卡住。
+function skeletonBlock(height, extra = "") {
+  return `<div class="skel skel-block" style="height:${height}px;${extra}"></div>`;
+}
+function skeletonRows(n) {
+  return Array.from({ length: n }, () => `<div class="skel skel-row"></div>`).join("");
+}
+function skeletonHome() {
+  return skeletonBlock(110, "margin-bottom:12px") +
+    `<div style="display:flex;gap:9px;margin-bottom:8px">
+      ${skeletonBlock(78, "flex:1 1 0")}${skeletonBlock(78, "flex:1 1 0")}
+    </div>` +
+    skeletonBlock(56, "margin-bottom:14px") + skeletonRows(4);
+}
+function skeletonDetail() {
+  return skeletonBlock(90, "margin-bottom:16px") +
+    skeletonBlock(140, "margin-bottom:16px") +
+    skeletonBlock(260, "margin-bottom:16px") + skeletonRows(3);
+}
+function skeletonList(n = 6) {
+  return skeletonRows(n);
+}
+function skeletonCards() {
+  return skeletonBlock(100, "margin-bottom:12px") + skeletonRows(5);
+}
+// 資產走勢、每日簡報這類需要跑 10-20 秒的運算，骨架屏之外還是保留明確的等待時間提示，
+// 不然使用者會以為卡住了。
+function skeletonWithHint(height, hint) {
+  return skeletonBlock(height, "margin-bottom:10px") +
+    `<div class="loading" style="padding-top:0">${hint}</div>`;
 }
 
 function pctStr(x) {
@@ -122,7 +155,7 @@ function bindHeaderEvents() {
 // ------------------------------------------------------------------
 async function renderHome() {
   const app = document.getElementById("app");
-  app.innerHTML = renderHeader("🏠 投資總覽") + `<div id="homeBody"><div class="loading">抓取即時報價中…</div></div>` + renderBottomNav("home");
+  app.innerHTML = renderHeader("🏠 投資總覽") + `<div id="homeBody">${skeletonHome()}</div>` + renderBottomNav("home");
   bindHeaderEvents();
 
   const s = await api("/summary");
@@ -419,7 +452,7 @@ async function renderHoldList() {
     <div class="popover-panel${addOpen ? " open" : ""}" id="addTxPanel"></div>
   </div>`;
   app.innerHTML = renderHeader("📦 我的持股", addBtn) +
-    `<div id="holdBody"><div class="loading">抓取即時報價中…</div></div>` + renderBottomNav("hold");
+    `<div id="holdBody">${skeletonList()}</div>` + renderBottomNav("hold");
   bindHeaderEvents();
   document.getElementById("addTxBtn").addEventListener("click", () => {
     addOpen = !addOpen;
@@ -440,7 +473,7 @@ let detailCache = null;
 async function renderDetail(symbol, fromNav = "hold") {
   const app = document.getElementById("app");
   app.innerHTML = `<button class="btn-back" id="backBtn">←</button>
-    <div id="detailBody"><div class="loading">載入中…</div></div>` + renderBottomNav(fromNav);
+    <div id="detailBody">${skeletonDetail()}</div>` + renderBottomNav(fromNav);
   document.getElementById("backBtn").addEventListener("click", () => navigateTo(`?nav=${fromNav}`));
 
   const d = await api(`/holdings/${encodeURIComponent(symbol)}`);
@@ -509,7 +542,7 @@ async function renderDetail(symbol, fromNav = "hold") {
   html += sec("📈 走勢圖") + segGroup("range", [
     { key: "1d", label: "當天" }, { key: "5d", label: "1週" }, { key: "1mo", label: "1月" },
     { key: "3mo", label: "3月" }, { key: "6mo", label: "6月" }, { key: "1y", label: "1年" },
-  ], detailRange) + `<div class="plotly-chart-wrap" id="chartWrap"><div class="loading">載入走勢中…</div></div>`;
+  ], detailRange) + `<div class="plotly-chart-wrap" id="chartWrap">${skeletonBlock(260)}</div>`;
 
   const ks = d.key_stats;
   html += sec("🔑 關鍵數據") + statCardGroup([
@@ -562,7 +595,7 @@ function statCardGroup(items) {
 
 async function loadChart(symbol) {
   const wrap = document.getElementById("chartWrap");
-  wrap.innerHTML = `<div class="loading">載入走勢中…</div>`;
+  wrap.innerHTML = skeletonBlock(260);
   const { points } = await api(`/chart/${encodeURIComponent(symbol)}?range=${detailRange}`);
   const up = points.length > 1 ? points[points.length - 1].v >= points[0].v : true;
   drawLineChart(wrap, points, {
@@ -794,7 +827,7 @@ async function renderWatchList() {
     <div class="popover-panel${watchOpen ? " open" : ""}" id="addWatchPanel"></div>
   </div>`;
   app.innerHTML = renderHeader("👀 追蹤清單", addBtn) +
-    `<div id="watchBody"><div class="loading">抓取即時報價中…</div></div>` + renderBottomNav("watch");
+    `<div id="watchBody">${skeletonList()}</div>` + renderBottomNav("watch");
   bindHeaderEvents();
   document.getElementById("addWatchBtn").addEventListener("click", () => {
     watchOpen = !watchOpen;
@@ -902,7 +935,7 @@ onSeg("period", async val => {
   statsPeriod = val;
   document.querySelectorAll('[data-seg-btn="period"]').forEach(b => b.classList.toggle("active", b.dataset.value === val));
   const rest = document.getElementById("statsRest");
-  if (rest) rest.innerHTML = `<div class="loading">載入中…</div>`;
+  if (rest) rest.innerHTML = skeletonCards();
   await loadStats(val);
   rerenderStatsBody();
 });
@@ -910,7 +943,7 @@ onSeg("period", async val => {
 async function renderStats() {
   const app = document.getElementById("app");
   app.innerHTML = renderHeader("📊 統計報表") +
-    `<div id="statsBody"><div class="loading">載入中…</div></div>` + renderBottomNav("stats");
+    `<div id="statsBody">${skeletonCards()}</div>` + renderBottomNav("stats");
   bindHeaderEvents();
 
   const s0 = await loadStats("all");
@@ -944,7 +977,7 @@ async function renderBrief() {
   app.innerHTML = renderHeader("📰 每日投資簡報") +
     `<p class="hint">每天自動幫你盤點三件事：① 美股大盤走勢＋新聞　② 你的持股大幅漲跌＋原因＋買賣建議
       ③ 值得關注的股票。完全免費、免金鑰。</p>
-     <div id="briefBody"><div class="loading">載入中…</div></div>` + renderBottomNav("brief");
+     <div id="briefBody">${skeletonCards()}</div>` + renderBottomNav("brief");
   bindHeaderEvents();
 
   const body = document.getElementById("briefBody");
@@ -965,7 +998,7 @@ async function renderBrief() {
   }
 
   onSeg("gen-brief", async () => {
-    body.innerHTML = `<div class="loading">整理大盤、你的持股與相關新聞中…（約 10-20 秒）</div>`;
+    body.innerHTML = skeletonWithHint(220, "整理大盤、你的持股與相關新聞中…（約 10-20 秒）");
     try {
       const data = await fetch("/api/briefing/generate", { method: "POST" }).then(r => {
         if (!r.ok) return r.json().then(j => { throw new Error(apiErrorMessage(j, "產生失敗")); });
@@ -987,7 +1020,7 @@ async function renderTrend() {
   const app = document.getElementById("app");
   app.innerHTML = `<button class="btn-back" id="backBtn">←</button>
     <h1>📈 資產走勢</h1>
-    <div id="trendBody"><div class="loading">計算歷史市值中…（約 10-20 秒）</div></div>` +
+    <div id="trendBody">${skeletonWithHint(240, "計算歷史市值中…（約 10-20 秒）")}</div>` +
     renderBottomNav("home");
   document.getElementById("backBtn").addEventListener("click", () => navigateTo("?nav=home"));
 
@@ -1029,7 +1062,7 @@ async function loadTrendBody() {
 onSeg("trendgran", async val => {
   trendGran = val;
   document.querySelectorAll('[data-seg-btn="trendgran"]').forEach(b => b.classList.toggle("active", b.dataset.value === val));
-  document.getElementById("trendBody").innerHTML = `<div class="loading">計算歷史市值中…（約 10-20 秒）</div>`;
+  document.getElementById("trendBody").innerHTML = skeletonWithHint(240, "計算歷史市值中…（約 10-20 秒）");
   await loadTrendBody();
 });
 

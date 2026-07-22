@@ -3,13 +3,27 @@
 :root{
   --ink:#1e1e20; --sub:#6b7280; --line:rgba(17,24,39,.08);
   --card:#ffffff; --card2:#f3f4f6;
-  --accent:#f2941f; --accent-dk:#c96e0a; --accent-lt:#fbdca3;
+  --accent:#f2941f; --accent-dk:#c96e0a; --accent-lt:#fbdca3; --accent-text:var(--accent-dk);
   --green:#18a558; --red:#e0405a;
+  --logo-bg:#eceef1; --logo-border:#dde1e6;
+  --bottomnav-bg:rgba(255,255,255,.86); --bottomnav-sh:0 -8px 26px rgba(15,23,42,.10);
   --r-sm:12px; --r-md:16px; --r-lg:22px; --r-xl:26px;
   --sh-sm:0 1px 3px rgba(17,24,39,.07);
   --sh-md:0 3px 10px rgba(17,24,39,.08), 0 1px 3px rgba(17,24,39,.06);
   --sh-lg:0 14px 32px -8px rgba(15,23,42,.18), 0 2px 8px rgba(15,23,42,.07);
   --bounce:cubic-bezier(.34,1.56,.64,1);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --ink:#eceef1; --sub:#9aa1ac; --line:rgba(255,255,255,.09);
+    --card:#1c1e22; --card2:#28292f;
+    --accent-text:#ffb454;
+    --logo-bg:#2a2c32; --logo-border:#3a3c44;
+    --bottomnav-bg:rgba(24,25,29,.86); --bottomnav-sh:0 -8px 26px rgba(0,0,0,.35);
+    --sh-sm:0 1px 3px rgba(0,0,0,.32);
+    --sh-md:0 3px 10px rgba(0,0,0,.38), 0 1px 3px rgba(0,0,0,.28);
+    --sh-lg:0 14px 32px -8px rgba(0,0,0,.55), 0 2px 8px rgba(0,0,0,.3);
+  }
 }
 *{box-sizing:border-box}
 html{background:#eef0f3;overscroll-behavior-y:none}
@@ -20,6 +34,13 @@ body{margin:0;background:
   overscroll-behavior-y:none;
   font-family:'Noto Sans TC',-apple-system,'Segoe UI','PingFang TC','Microsoft JhengHei',sans-serif;
   font-size:15px;color:var(--ink)}
+@media (prefers-color-scheme: dark){
+  html{background:#131417}
+  body{background:
+    radial-gradient(1100px 520px at 12% -8%, #1b1c20 0%, transparent 60%),
+    radial-gradient(900px 480px at 100% 0%, #17181c 0%, transparent 55%),
+    #131417}
+}
 #app{max-width:1080px;margin:0 auto;
   padding:calc(1.8rem + env(safe-area-inset-top)) 1rem 3rem}
 h1{font-size:1.68rem;font-weight:800;letter-spacing:.1px;margin:0}
@@ -190,10 +211,10 @@ button{font-family:inherit;cursor:pointer}
 /* 底部固定分頁列 */
 .bottomnav{position:fixed;bottom:0;left:0;right:0;z-index:9999;display:flex;
   justify-content:space-around;align-items:center;gap:2px;
-  background:rgba(255,255,255,.86);backdrop-filter:blur(14px) saturate(1.4);
+  background:var(--bottomnav-bg);backdrop-filter:blur(14px) saturate(1.4);
   border-top:1px solid var(--line);
   padding:7px 8px;padding-bottom:calc(9px + env(safe-area-inset-bottom));
-  box-shadow:0 -8px 26px rgba(30,28,22,.10)}
+  box-shadow:var(--bottomnav-sh)}
 .navlink{text-decoration:none;text-align:center;flex:1;padding:9px 2px;
   border-radius:14px;transition:background .2s,transform .2s var(--bounce);background:none;border:none}
 .navlink:hover{background:var(--card2);transform:translateY(-1px)}
@@ -207,8 +228,8 @@ button{font-family:inherit;cursor:pointer}
 .plotly-chart-wrap{margin:8px 0}
 .loading{color:var(--sub);font-size:.9rem;padding:20px 4px;text-align:center}
 
-/* 走勢圖 tooltip（點/觸碰顯示數值用） */
-.chart-tooltip{position:absolute;background:var(--ink);color:#fff;font-size:.76rem;
+/* 走勢圖 tooltip（點/觸碰顯示數值用）：固定深色，不跟著主題翻轉，淺色/深色模式都看得清楚 */
+.chart-tooltip{position:absolute;background:rgba(30,30,34,.95);color:#fff;font-size:.76rem;
   line-height:1.4;padding:6px 9px;border-radius:9px;pointer-events:none;
   box-shadow:var(--sh-md);white-space:nowrap;z-index:5}
 
@@ -223,14 +244,14 @@ button{font-family:inherit;cursor:pointer}
   transition:transform .2s var(--bounce),box-shadow .2s,color .15s,border-color .15s}
 .seg-btn:hover{transform:translateY(-1px);box-shadow:var(--sh-sm)}
 .seg-btn:active{transform:scale(.94)}
-.seg-btn.active{color:var(--accent-dk);border-color:var(--accent);
+.seg-btn.active{color:var(--accent-text);border-color:var(--accent);
   background:linear-gradient(180deg,rgba(242,148,31,.16),rgba(242,148,31,.05))}
 
 /* 持股列表：一列可點進去看詳細 */
 .hitem-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .hitem-left{display:flex;align-items:center;gap:10px;min-width:0}
 .hitem-logo{width:36px;height:36px;border-radius:9px;flex:0 0 auto;
-  background:#eceef1 center/78% no-repeat;border:1px solid #dde1e6}
+  background:var(--logo-bg) center/78% no-repeat;border:1px solid var(--logo-border)}
 .hitem-name{min-width:0}
 .hitem-right{text-align:right;flex:0 0 auto}
 
@@ -257,3 +278,12 @@ button{font-family:inherit;cursor:pointer}
   background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);
   box-shadow:var(--sh-lg);padding:14px 16px;display:none}
 .popover-panel.open{display:block}
+
+/* 骨架屏：冷啟動等 API 回來的時候用，取代純文字「載入中」，比較像原生 app 在讀資料。 */
+.skel{background:linear-gradient(100deg, var(--card2) 20%, var(--line) 42%, var(--card2) 64%);
+  background-size:250% 100%;animation:skel-shimmer 1.5s ease-in-out infinite;
+  border-radius:var(--r-md)}
+@keyframes skel-shimmer{0%{background-position:120% 0}100%{background-position:-20% 0}}
+.skel-row{height:64px;margin-bottom:8px}
+.skel-block{width:100%}
+.skel-line{height:14px;border-radius:7px}
