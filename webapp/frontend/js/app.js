@@ -1101,6 +1101,16 @@ async function render() {
   return renderHome();
 }
 
+// 個股詳細／資產走勢／可用資金這些「子頁面」不是分頁輪播的一員，左右滑不該跳去
+// 相鄰分頁（例如追蹤清單點進個股詳細，往前滑卻跑去持股，因為持股剛好是追蹤清單
+// 分頁順序上的前一個）。子頁面上滑動只做一件事：往右滑＝返回上一頁，往左滑沒有意義。
+function subPageBackTarget() {
+  const sym = qs("sym", null);
+  if (sym) return `?nav=${qs("nav", "hold")}`;
+  if (qs("trend", null) || qs("cash", null)) return "?nav=home";
+  return null;
+}
+
 // 左右滑動換頁：手指移動時畫面就即時跟著滑（有阻尼），放開後再決定是換頁還是彈回原位，
 // 不是像之前那樣放開才觸發，滑動的當下要看得到回饋。
 function bindSwipeNav() {
@@ -1127,10 +1137,16 @@ function bindSwipeNav() {
     }
     if (!dragging) return;
     dx = rawDx;
-    const order = NAV.map(n => n.key);
-    const i = Math.max(0, order.indexOf(qs("nav", "home")));
-    const atStart = i === 0 && dx > 0, atEnd = i === order.length - 1 && dx < 0;
-    const damp = (atStart || atEnd) ? 0.35 : 0.85; // 到頭尾兩端加阻尼，感覺像撞到底
+    const backTarget = subPageBackTarget();
+    let damp;
+    if (backTarget) {
+      damp = dx > 0 ? 0.85 : 0.35; // 子頁面：往右（返回）正常跟手，往左沒地方去所以加阻尼
+    } else {
+      const order = NAV.map(n => n.key);
+      const i = Math.max(0, order.indexOf(qs("nav", "home")));
+      const atStart = i === 0 && dx > 0, atEnd = i === order.length - 1 && dx < 0;
+      damp = (atStart || atEnd) ? 0.35 : 0.85; // 到頭尾兩端加阻尼，感覺像撞到底
+    }
     app.style.transform = `translateX(${dx * damp}px)`;
     app.style.opacity = String(Math.max(0.55, 1 - Math.abs(dx) / 700));
     e.preventDefault();
@@ -1139,6 +1155,12 @@ function bindSwipeNav() {
   document.addEventListener("touchend", () => {
     if (!dragging) { deciding = true; return; }
     dragging = false; deciding = true;
+    const backTarget = subPageBackTarget();
+    if (backTarget) {
+      if (dx > 70) finishSwipeTo(backTarget, "right");
+      else snapBack(app);
+      return;
+    }
     const order = NAV.map(n => n.key);
     let i = order.indexOf(qs("nav", "home"));
     if (i < 0) i = 0;
@@ -1146,11 +1168,15 @@ function bindSwipeNav() {
     if (Math.abs(dx) > 70 && next >= 0 && next < order.length) {
       finishSwipeTo(`?nav=${order[next]}`, dx < 0 ? "left" : "right");
     } else {
-      app.style.transition = "transform .3s var(--bounce), opacity .2s";
-      app.style.transform = "translateX(0)";
-      app.style.opacity = "1";
+      snapBack(app);
     }
   }, { passive: true });
+}
+
+function snapBack(app) {
+  app.style.transition = "transform .3s var(--bounce), opacity .2s";
+  app.style.transform = "translateX(0)";
+  app.style.opacity = "1";
 }
 
 // 手指放開、確定要換頁：從目前拖曳的位置繼續滑出去，再換上下一頁滑進來。
