@@ -1101,38 +1101,68 @@ async function render() {
   return renderHome();
 }
 
-// 左右滑動換頁（純 top-level JS，沒有 iframe sandbox 問題，直接改網址即可）
+// 左右滑動換頁：手指移動時畫面就即時跟著滑（有阻尼），放開後再決定是換頁還是彈回原位，
+// 不是像之前那樣放開才觸發，滑動的當下要看得到回饋。
 function bindSwipeNav() {
-  let sx = 0, sy = 0, active = true;
+  const app = document.getElementById("app");
+  let sx = 0, sy = 0, dx = 0, active = true, deciding = true, dragging = false;
+
   document.addEventListener("touchstart", e => {
     const t = e.touches[0];
-    sx = t.clientX; sy = t.clientY;
+    sx = t.clientX; sy = t.clientY; dx = 0;
     active = !e.target.closest(".js-plotly-plot, .plotly-chart-wrap, .watch-row-wrap");
+    deciding = true; dragging = false;
+    app.style.transition = "none";
   }, { passive: true });
-  document.addEventListener("touchend", e => {
+
+  document.addEventListener("touchmove", e => {
     if (!active) return;
-    const t = e.changedTouches[0];
-    const dx = t.clientX - sx, dy = t.clientY - sy;
-    if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    const t = e.touches[0];
+    const rawDx = t.clientX - sx, rawDy = t.clientY - sy;
+    if (deciding) {
+      if (Math.abs(rawDx) < 10 && Math.abs(rawDy) < 10) return;
+      dragging = Math.abs(rawDx) > Math.abs(rawDy) * 1.3;
+      deciding = false;
+      if (!dragging) return; // 判定是上下滾動，交還給瀏覽器原生捲動
+    }
+    if (!dragging) return;
+    dx = rawDx;
+    const order = NAV.map(n => n.key);
+    const i = Math.max(0, order.indexOf(qs("nav", "home")));
+    const atStart = i === 0 && dx > 0, atEnd = i === order.length - 1 && dx < 0;
+    const damp = (atStart || atEnd) ? 0.35 : 0.85; // 到頭尾兩端加阻尼，感覺像撞到底
+    app.style.transform = `translateX(${dx * damp}px)`;
+    app.style.opacity = String(Math.max(0.55, 1 - Math.abs(dx) / 700));
+    e.preventDefault();
+  }, { passive: false });
+
+  document.addEventListener("touchend", () => {
+    if (!dragging) { deciding = true; return; }
+    dragging = false; deciding = true;
     const order = NAV.map(n => n.key);
     let i = order.indexOf(qs("nav", "home"));
     if (i < 0) i = 0;
     const next = dx < 0 ? i + 1 : i - 1;
-    if (next < 0 || next >= order.length) return;
-    slideNavTo(`?nav=${order[next]}`, dx < 0 ? "left" : "right");
+    if (Math.abs(dx) > 70 && next >= 0 && next < order.length) {
+      finishSwipeTo(`?nav=${order[next]}`, dx < 0 ? "left" : "right");
+    } else {
+      app.style.transition = "transform .3s var(--bounce), opacity .2s";
+      app.style.transform = "translateX(0)";
+      app.style.opacity = "1";
+    }
   }, { passive: true });
 }
 
-// 換頁時給個看得到的滑動＋淡出淡入，取代原本瞬間切換（不然滑動手勢感覺不到有反應）。
-function slideNavTo(url, dir) {
+// 手指放開、確定要換頁：從目前拖曳的位置繼續滑出去，再換上下一頁滑進來。
+function finishSwipeTo(url, dir) {
   const app = document.getElementById("app");
-  const outX = dir === "left" ? "-36px" : "36px";
-  app.style.transition = "transform .15s ease-in, opacity .15s ease-in";
+  const outX = dir === "left" ? "-100%" : "100%";
+  app.style.transition = "transform .18s ease-in, opacity .18s ease-in";
   app.style.transform = `translateX(${outX})`;
   app.style.opacity = "0";
   setTimeout(() => {
     navigateTo(url);
-    const inX = dir === "left" ? "36px" : "-36px";
+    const inX = dir === "left" ? "100%" : "-100%";
     app.style.transition = "none";
     app.style.transform = `translateX(${inX})`;
     requestAnimationFrame(() => {
@@ -1142,7 +1172,7 @@ function slideNavTo(url, dir) {
         app.style.opacity = "1";
       });
     });
-  }, 150);
+  }, 180);
 }
 
 // 攔截站內連結（href 以 "?" 開頭的都是我們自己的分頁/詳細頁連結），

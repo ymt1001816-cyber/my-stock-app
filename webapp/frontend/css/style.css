@@ -12,10 +12,12 @@
   --bounce:cubic-bezier(.34,1.56,.64,1);
 }
 *{box-sizing:border-box}
+html{background:#eef0f3;overscroll-behavior-y:none}
 body{margin:0;background:
   radial-gradient(1100px 520px at 12% -8%, #ffffff 0%, transparent 60%),
   radial-gradient(900px 480px at 100% 0%, #f7f8fa 0%, transparent 55%),
   #eef0f3;
+  overscroll-behavior-y:none;
   font-family:'Noto Sans TC',-apple-system,'Segoe UI','PingFang TC','Microsoft JhengHei',sans-serif;
   font-size:15px;color:var(--ink)}
 #app{max-width:1080px;margin:0 auto;
