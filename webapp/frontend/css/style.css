@@ -150,17 +150,20 @@ button{font-family:inherit;cursor:pointer}
 
 /* 券商風格持倉列 */
 .hlink{text-decoration:none;color:inherit;display:block}
-.hitem{display:flex;align-items:center;justify-content:space-between;gap:10px;
-  background:var(--card);padding:12px 14px;margin-bottom:8px;border-radius:var(--r-md);
+.hitem{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  background:var(--card);padding:16px 17px;margin-bottom:10px;border-radius:var(--r-md);
   border:1px solid var(--line);box-shadow:var(--sh-sm);
   transition:box-shadow .2s,transform .2s var(--bounce),border-color .2s}
 .hitem:hover{box-shadow:var(--sh-md);transform:translateY(-2px) scale(1.008);border-color:rgba(242,148,31,.38)}
 .hitem:active{transform:scale(.98)}
-.nm{font-weight:800;font-size:1.04rem;line-height:1.2;color:var(--ink)}
-.sub{color:var(--sub);font-size:.78rem}
-.chip{display:inline-block;border-radius:999px;padding:2px 9px;font-weight:800;
-  font-size:.82rem;margin-top:2px;transition:transform .2s var(--bounce)}
+.nm{font-weight:800;font-size:1.14rem;line-height:1.2;color:var(--ink)}
+.sub{color:var(--sub);font-size:.82rem}
+.chip{display:inline-block;border-radius:999px;padding:3px 10px;font-weight:800;
+  font-size:.84rem;margin-top:2px;transition:transform .2s var(--bounce)}
 .hitem:hover .chip{transform:scale(1.06)}
+/* 持股/追蹤清單列右邊是「金額」疊「百分比 chip」上下兩層，2px 間距擠在一起看起來很密，
+   拉開一點呼吸空間。 */
+.hitem-right .chip{margin-top:7px}
 
 /* 交易卡片 */
 .tcard{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--line);
@@ -254,10 +257,11 @@ button{font-family:inherit;cursor:pointer}
 
 /* 持股列表：一列可點進去看詳細 */
 .hitem-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.hitem-left{display:flex;align-items:center;gap:10px;min-width:0}
-.hitem-logo{width:36px;height:36px;border-radius:9px;flex:0 0 auto;
+.hitem-left{display:flex;align-items:center;gap:12px;min-width:0}
+.hitem-logo{width:44px;height:44px;border-radius:11px;flex:0 0 auto;
   background:var(--logo-bg) center/78% no-repeat;border:1px solid var(--logo-border)}
 .hitem-name{min-width:0}
+.hitem-name .sub{margin-top:3px;display:block}
 .hitem-right{text-align:right;flex:0 0 auto}
 
 /* 表單 */
