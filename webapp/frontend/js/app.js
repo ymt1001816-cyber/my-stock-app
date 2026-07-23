@@ -894,20 +894,18 @@ function txCardHtml(t) {
       const diffPct = t.price_usd ? (t.live_price_usd - t.price_usd) / t.price_usd * 100 : 0;
       const gc = colorOf(gain);
       const arrow = gain >= 0 ? "▲" : "▼";
-      footL += `　現價 ${usdOnly(t.live_price_usd)}`;
+      footL += ` 現價 ${usdOnly(t.live_price_usd)}`;
       chip = `<span class="chip" style="color:${gc};background:${gc}1c">${arrow} ${mh(gain, true)}（${diffPct >= 0 ? "+" : ""}${diffPct.toFixed(1)}%）</span>`;
     }
     body = `${head}<div style="text-align:right;font-weight:800;font-size:1.05rem">${t.shares % 1 === 0 ? t.shares : t.shares.toFixed(5)} 股</div></div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)">
-        <span class="sub">${footL}</span>${chip}</div>`;
+      <div class="tx-foot"><span class="sub">${footL}</span>${chip}</div>`;
   } else {
     const feeTax = t.fee + t.tax;
     const exTxt = feeTax ? `（費稅 ${usdOnly(feeTax)}）` : "";
     const cc = colorOf(t.pl_usd);
     const chip = `<span class="chip" style="color:${cc};background:${cc}1c">${mh(t.pl_usd, true)}（${t.pl_pct >= 0 ? "+" : ""}${t.pl_pct.toFixed(1)}%）</span>`;
     body = `${head}<div style="text-align:right;font-weight:800;font-size:1.05rem">${t.shares % 1 === 0 ? t.shares : t.shares.toFixed(5)} 股</div></div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)">
-        <span class="sub">@ ${usdOnly(t.price_usd)}${exTxt}</span>${chip}</div>`;
+      <div class="tx-foot"><span class="sub">@ ${usdOnly(t.price_usd)}${exTxt}</span>${chip}</div>`;
   }
   return `<div class="tcard ${cls}" style="display:block">${body}</div>`;
 }

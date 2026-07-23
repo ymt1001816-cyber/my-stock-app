@@ -156,10 +156,10 @@ button{font-family:inherit;cursor:pointer}
   transition:box-shadow .2s,transform .2s var(--bounce),border-color .2s}
 .hitem:hover{box-shadow:var(--sh-md);transform:translateY(-2px) scale(1.008);border-color:rgba(242,148,31,.38)}
 .hitem:active{transform:scale(.98)}
-.nm{font-weight:800;font-size:1.14rem;line-height:1.2;color:var(--ink)}
-.sub{color:var(--sub);font-size:.82rem}
-.chip{display:inline-block;border-radius:999px;padding:3px 10px;font-weight:800;
-  font-size:.84rem;margin-top:2px;transition:transform .2s var(--bounce)}
+.nm{font-weight:800;font-size:1.05rem;line-height:1.2;color:var(--ink)}
+.sub{color:var(--sub);font-size:.78rem}
+.chip{display:inline-block;border-radius:999px;padding:2px 9px;font-weight:800;
+  font-size:.8rem;margin-top:2px;transition:transform .2s var(--bounce)}
 .hitem:hover .chip{transform:scale(1.06)}
 /* 持股/追蹤清單列右邊是「金額」疊「百分比 chip」上下兩層，2px 間距擠在一起看起來很密，
    拉開一點呼吸空間。 */
@@ -174,6 +174,12 @@ button{font-family:inherit;cursor:pointer}
 .tcard.buy{border-left-color:var(--red)}
 .tcard.sell{border-left-color:var(--green)}
 .tcard.div{border-left-color:#d9822b}
+/* 交易卡片下方那排「成本/現價」跟賺賠 chip：字級再收小一點盡量擠在同一行，
+   真的太長容得不下才讓 chip 掉到下一行（flex-wrap 當保底，不會整個疊在一起變醜）。 */
+.tx-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;
+  margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
+.tx-foot .sub{font-size:.74rem}
+.tx-foot .chip{font-size:.76rem;padding:2px 7px;margin-top:0}
 
 /* 新聞列表 */
 .nrow{display:block;text-decoration:none;color:inherit;
