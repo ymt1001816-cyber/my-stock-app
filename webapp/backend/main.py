@@ -45,6 +45,9 @@ RED = "#c26661"
 GREY = "#94907f"
 ORANGE = "#d9822b"
 
+# 單一持股佔總市值超過這個比例，就在總覽頁提醒集中度風險
+CONCENTRATION_THRESHOLD_PCT = 25
+
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
 
 app = FastAPI(title="美股投資追蹤 API")
@@ -247,6 +250,10 @@ def get_summary():
             alerts.append({"kind": "day_up" if r["day_pct"] > 0 else "day_down",
                            "symbol": r["symbol"], "day_pct": r["day_pct"],
                            "day_amt_usd": day_amt})
+        weight_pct = (r["market_value"] / total_mv * 100) if total_mv else 0
+        if weight_pct >= CONCENTRATION_THRESHOLD_PCT:
+            alerts.append({"kind": "concentration", "symbol": r["symbol"],
+                           "weight_pct": weight_pct})
 
     return {
         "empty": False, "cash_usd": cash, "total_mv_usd": total_mv, "assets_usd": assets,
@@ -325,8 +332,11 @@ def get_holding_detail(symbol: str):
 
         daily = mk.get_chart(symbol, period="6mo")
         rsi_val = mk.rsi(daily["Close"]) if not daily.empty else None
+        macd_val = mk.macd(daily["Close"]) if not daily.empty else None
+        vol_ratio = mk.volume_ratio(daily["Volume"]) if not daily.empty and "Volume" in daily else None
         verdict = an.analyze_holding(q, shares, avg,
-                                     stop_price if pd.notna(stop_price) else None, rsi_val)
+                                     stop_price if pd.notna(stop_price) else None, rsi_val,
+                                     macd_val=macd_val, vol_ratio=vol_ratio)
         dca = an.is_dca(note)
         light = an.analyze_light(q["price"], q.get("ma50", 0), q.get("ma200", 0),
                                  plpct, stop_price if pd.notna(stop_price) else None, dca)
@@ -344,6 +354,7 @@ def get_holding_detail(symbol: str):
                         "t20": verdict["t20"]},
             "light": {"label": light["label"], "emoji": light["emoji"],
                      "color": light["color"], "reasons": light["reasons"]},
+            "rsi": rsi_val, "macd": macd_val, "vol_ratio": vol_ratio,
         }
 
     news = mk.get_news(symbol, limit=4)
@@ -360,9 +371,9 @@ def get_holding_detail(symbol: str):
             "target_mean_usd": q["target_mean"], "recommend": an.REC_ZH.get(q["recommend"], "—"),
             "wk52_high_usd": q["wk52_high"], "wk52_low_usd": q["wk52_low"],
             "day_high_usd": q["day_high"], "day_low_usd": q["day_low"],
-            "pe": q["pe"], "market_cap": q["market_cap"],
+            "pe": q["pe"], "market_cap": q["market_cap"], "beta": q.get("beta"),
             "ma50_usd": q["ma50"], "ma200_usd": q["ma200"],
-            "div_yield_pct": q["div_yield"] * 100 if q["div_yield"] else None,
+            "div_yield_pct": q["div_yield"] if q["div_yield"] else None,
             "div_rate_usd": q["div_rate"],
         },
         "dates": {
@@ -697,6 +708,46 @@ def get_trend(gran: str = "日"):
         "series": [{"t": str(t), "v": float(v)} for t, v in s.items()],
         "changes": [{"t": str(t), "v": float(v)} for t, v in change.items()],
     }
+
+
+# ------------------------------------------------------------------
+# 📅 股利／財報行事曆（總覽頁點進去，彙總持股＋追蹤清單全部股票的重要日期）
+# ------------------------------------------------------------------
+_CAL_EVENT_LABEL = {"earnings": "📊 財報", "ex_div": "💰 除息", "div_pay": "💵 配息發放"}
+
+
+@app.get("/api/calendar")
+def get_calendar():
+    hold = load_holdings()
+    watch = load_watch()
+    held_syms = hold["symbol"].tolist() if not hold.empty else []
+    watch_syms = watch["symbol"].tolist() if not watch.empty else []
+    all_syms = sorted(set(held_syms) | set(watch_syms))
+    if not all_syms:
+        return {"empty": True, "events": []}
+
+    held_set = set(held_syms)
+    with ThreadPoolExecutor(max_workers=min(6, len(all_syms))) as ex:
+        quotes = list(ex.map(mk.get_quote, all_syms))
+
+    # Yahoo 的財報/除息日資料常常是舊的（例如已經停止配息很久的公司，還留著幾年前
+    # 甚至幾十年前的除息日）。只留「最近 60 天內～未來」的日期，太舊的視為過期資料濾掉。
+    cutoff = date_cls.fromordinal(date_cls.today().toordinal() - 60)
+
+    events = []
+    for sym, q in zip(all_syms, quotes):
+        kind = "held" if sym in held_set else "watch"
+        for field, etype in [("earnings_date", "earnings"), ("ex_div_date", "ex_div"),
+                              ("div_date", "div_pay")]:
+            d = q.get(field)
+            if d and d >= cutoff:
+                events.append({
+                    "symbol": sym, "name": q["name"], "date": str(d),
+                    "type": etype, "label": _CAL_EVENT_LABEL[etype], "kind": kind,
+                })
+    events.sort(key=lambda e: e["date"])
+    today = str(date_cls.today())
+    return {"empty": not events, "today": today, "events": events}
 
 
 def _asset_version(*names):

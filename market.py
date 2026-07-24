@@ -126,7 +126,7 @@ def _empty_quote(symbol):
         "wk52_high": 0.0, "wk52_low": 0.0, "ma50": 0.0, "ma200": 0.0,
         "pe": None, "market_cap": None, "div_rate": None, "div_yield": None,
         "ex_div_date": None, "div_date": None, "earnings_date": None,
-        "target_mean": None, "recommend": None, "ok": False,
+        "target_mean": None, "recommend": None, "beta": None, "ok": False,
     }
 
 
@@ -205,6 +205,7 @@ def _get_quote_cached(symbol: str) -> dict:
         q["earnings_date"] = _ts_to_date(info.get("earningsTimestamp"))
         q["target_mean"] = info.get("targetMeanPrice")
         q["recommend"] = info.get("recommendationKey")
+        q["beta"] = info.get("beta")
     # 財報 / 除息日（calendar 較準）
     try:
         ed = cal.get("Earnings Date")
@@ -428,5 +429,36 @@ def rsi(series: pd.Series, period: int = 14) -> float:
     val = 100 - 100 / (1 + rs)
     try:
         return float(val.iloc[-1])
+    except Exception:
+        return None
+
+
+def macd(series: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> dict:
+    """標準 12/26/9 MACD；回傳目前與前一天的柱狀圖值（給判斷金叉/死叉用）。資料不足回 None。"""
+    if series is None or len(series) < slow + signal:
+        return None
+    ema_fast = series.ewm(span=fast, adjust=False).mean()
+    ema_slow = series.ewm(span=slow, adjust=False).mean()
+    macd_line = ema_fast - ema_slow
+    signal_line = macd_line.ewm(span=signal, adjust=False).mean()
+    hist = macd_line - signal_line
+    try:
+        return {
+            "macd": float(macd_line.iloc[-1]), "signal": float(signal_line.iloc[-1]),
+            "hist": float(hist.iloc[-1]), "prev_hist": float(hist.iloc[-2]),
+        }
+    except Exception:
+        return None
+
+
+def volume_ratio(volume: pd.Series, window: int = 20) -> float:
+    """今日成交量 ÷ 前 window 天平均成交量；資料不足或均量為 0 回 None。"""
+    if volume is None or len(volume) < window + 1:
+        return None
+    avg = volume.iloc[-window - 1:-1].mean()
+    if not avg:
+        return None
+    try:
+        return float(volume.iloc[-1] / avg)
     except Exception:
         return None

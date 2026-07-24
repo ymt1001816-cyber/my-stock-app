@@ -185,6 +185,9 @@ async function renderHome() {
   const cashStrip = `<a href="?nav=home&cash=1" class="cashstrip">
     <span class="l">💵 可用資金</span><span class="v">${mh(s.cash_usd)}</span><span class="arrow">›</span></a>`;
 
+  const calStrip = `<a href="?nav=home&cal=1" class="cashstrip">
+    <span class="l">📅 股利／財報行事曆</span><span class="arrow">›</span></a>`;
+
   let allocHtml = "";
   if (s.total_mv_usd) {
     const bar = s.allocation.map(a => `<span style="width:${a.pct.toFixed(2)}%;background:${a.color}"></span>`).join("");
@@ -212,6 +215,8 @@ async function renderHome() {
         🔴 <b>${esc(a.symbol)}</b> 考慮停損（${a.pl_pct >= 0 ? "+" : ""}${a.pl_pct.toFixed(1)}%，${mh(a.pl_usd, true)}）</div>`;
       if (a.kind === "weak") return `<div class="posblock" style="background:${ORANGE}17;border-left:5px solid ${ORANGE};color:var(--ink)">
         🟠 <b>${esc(a.symbol)}</b> 走勢偏弱，可考慮減碼（${a.pl_pct >= 0 ? "+" : ""}${a.pl_pct.toFixed(1)}%，${mh(a.pl_usd, true)}）</div>`;
+      if (a.kind === "concentration") return `<div class="posblock" style="background:${ORANGE}17;border-left:5px solid ${ORANGE};color:var(--ink)">
+        ⚖️ <b>${esc(a.symbol)}</b> 佔持股市值 ${a.weight_pct.toFixed(1)}%，集中度偏高，留意風險分散</div>`;
       const cc = a.kind === "day_up" ? GREEN : ORANGE;
       const dd = a.kind === "day_up" ? "大漲" : "大跌";
       const amtTxt = a.day_amt_usd !== null && a.day_amt_usd !== undefined ? `，${mh(a.day_amt_usd, true)}` : "";
@@ -220,7 +225,7 @@ async function renderHome() {
     }).join("");
   }
 
-  body.innerHTML = hero + smallCards + cashStrip +
+  body.innerHTML = hero + smallCards + cashStrip + calStrip +
     `<div class="hint">👉 <b>點資產總額看資產走勢</b>　·　<b>點可用資金設定金額</b></div>` +
     allocHtml + winnersHtml + alertsHtml + renderFooter();
 }
@@ -556,6 +561,27 @@ async function renderDetail(symbol, fromNav = "hold") {
       `<span class="badge" style="background:${lt.color}22;color:${lt.color}">${lt.emoji} ${esc(lt.label)}</span>` +
       lt.reasons.map(r => `<div style="font-size:.88rem;margin:2px 0">${esc(r)}</div>`).join("") +
       `<p class="hint">※ 機械式規則計算，非投資建議。</p>`;
+
+    if (p.rsi !== null || p.macd || p.vol_ratio !== null) {
+      const rsiTxt = p.rsi !== null
+        ? `${p.rsi.toFixed(0)}${p.rsi >= 75 ? "（過熱）" : p.rsi <= 30 ? "（超賣）" : ""}` : "—";
+      const rsiColor = p.rsi !== null && p.rsi >= 75 ? ORANGE : p.rsi !== null && p.rsi <= 30 ? "#1971c2" : GREY;
+      let macdTxt = "—", macdColor = GREY;
+      if (p.macd) {
+        const crossedUp = p.macd.prev_hist <= 0 && p.macd.hist > 0;
+        const crossedDown = p.macd.prev_hist >= 0 && p.macd.hist < 0;
+        if (crossedUp) { macdTxt = "剛出現黃金交叉"; macdColor = "#1971c2"; }
+        else if (crossedDown) { macdTxt = "剛出現死亡交叉"; macdColor = ORANGE; }
+        else { macdTxt = p.macd.hist > 0 ? "偏多" : "偏空"; macdColor = p.macd.hist > 0 ? GREEN : ORANGE; }
+      }
+      const volTxt = p.vol_ratio !== null ? `${p.vol_ratio.toFixed(1)} 倍 20 日均量` : "—";
+      const volColor = p.vol_ratio !== null && p.vol_ratio >= 2 ? ORANGE : GREY;
+      html += sec("📡 更多技術訊號") + statGrid([
+        ["RSI (14)", rsiTxt, rsiColor],
+        ["MACD", macdTxt, macdColor],
+        ["成交量", volTxt, volColor],
+      ]);
+    }
   }
 
   html += sec("📈 走勢圖") + segGroup("range", [
@@ -565,12 +591,13 @@ async function renderDetail(symbol, fromNav = "hold") {
 
   const ks = d.key_stats;
   html += sec("🔑 關鍵數據") + statCardGroup([
-    [`分析師`, `${ks.target_mean_usd ? usdOnly(ks.target_mean_usd) : "—"} · ${esc(ks.recommend)}`,
+    [`分析師`, `${ks.target_mean_usd ? usdOnly(ks.target_mean_usd) : "—"}<br>${esc(ks.recommend)}`,
       ks.target_mean_usd && ks.target_mean_usd > d.price_usd ? GREEN : GREY],
     ["52週高/低", `${usdOnly(ks.wk52_high_usd)} / ${usdOnly(ks.wk52_low_usd)}`, GREY],
     ["今日高/低", `${usdOnly(ks.day_high_usd)} / ${usdOnly(ks.day_low_usd)}`, GREY],
     ["本益比", ks.pe ? ks.pe.toFixed(1) : "—", GREY],
     ["市值", ks.market_cap ? `$${(ks.market_cap / 1e9).toLocaleString("en-US", { maximumFractionDigits: 0 })}B` : "—", GREY],
+    ["Beta（波動度）", ks.beta ? `${ks.beta.toFixed(2)}${ks.beta > 1 ? "（波動大於大盤）" : "（波動小於大盤）"}` : "—", GREY],
     ["50/200日均", `${usdOnly(ks.ma50_usd)} / ${usdOnly(ks.ma200_usd)}`, GREY],
     ["殖利率", ks.div_yield_pct ? `${ks.div_yield_pct.toFixed(2)}%` : "無配息", GREY],
     ["每股股利", ks.div_rate_usd ? usdOnly(ks.div_rate_usd) : "—", GREY],
@@ -604,7 +631,9 @@ async function renderDetail(symbol, fromNav = "hold") {
 }
 
 function statGrid(items) {
-  return `<div class="statgrid">${items.map(([l, v, c]) =>
+  // 3 張（或 3 的倍數）就排成 3 欄一次排滿，不然會變成「上面兩張、下面孤零零一張」。
+  const cols = items.length % 3 === 0 ? 3 : 2;
+  return `<div class="statgrid cols-${cols}">${items.map(([l, v, c]) =>
     `<div class="statcell"><div class="l">${esc(l)}</div><div class="v" style="color:${c}">${v}</div></div>`).join("")}</div>`;
 }
 function statCardGroup(items) {
@@ -1112,6 +1141,38 @@ onSeg("save-cash", async () => {
 });
 
 // ------------------------------------------------------------------
+// 📅 股利／財報行事曆（持股＋追蹤清單彙總，依日期排序）
+// ------------------------------------------------------------------
+async function renderCalendar() {
+  const app = document.getElementById("app");
+  app.innerHTML = `<button class="btn-back" id="backBtn">←</button>
+    <h1>📅 股利／財報行事曆</h1>
+    <div id="calBody">${skeletonList()}</div>` + renderBottomNav("home");
+  document.getElementById("backBtn").addEventListener("click", () => navigateTo("?nav=home"));
+
+  const c = await api("/calendar");
+  const body = document.getElementById("calBody");
+  if (c.empty) {
+    body.innerHTML = `<p>目前持股與追蹤清單裡，沒有查得到的財報／除息／配息日期。</p>` + renderFooter();
+    return;
+  }
+  const rows = c.events.map(e => {
+    const isPast = e.date < c.today;
+    const tagColor = e.kind === "held" ? GREEN : GREY;
+    return `<div class="posblock" style="border-left:5px solid ${isPast ? "var(--line)" : tagColor};
+      opacity:${isPast ? 0.55 : 1}">
+      <div style="display:flex;justify-content:space-between;gap:8px">
+        <span><b>${esc(e.symbol)}</b> <span style="color:#6b7280">${esc(e.label)}</span></span>
+        <span style="color:#6b7280">${esc(e.date)}</span>
+      </div>
+      <div style="color:#6b7280;font-size:.85rem">${esc(e.name)}　·　${e.kind === "held" ? "持股中" : "追蹤清單"}</div>
+    </div>`;
+  }).join("");
+  body.innerHTML = `<p class="hint">今天：${esc(c.today)}　·　🟢 持股中　⚪ 追蹤清單　（淡色＝已過去）</p>` +
+    rows + renderFooter();
+}
+
+// ------------------------------------------------------------------
 // 尚未搬遷完成的頁面：先顯示佔位訊息
 // ------------------------------------------------------------------
 function renderPlaceholder(key, title) {
@@ -1146,6 +1207,7 @@ async function render() {
 
   if (qs("trend", null)) return renderTrend();
   if (qs("cash", null)) return renderCash();
+  if (qs("cal", null)) return renderCalendar();
   const sym = qs("sym", null);
   if (sym) return renderDetail(sym, nav);
   if (nav === "home") return renderHome();
@@ -1162,7 +1224,7 @@ async function render() {
 function subPageBackTarget() {
   const sym = qs("sym", null);
   if (sym) return `?nav=${qs("nav", "hold")}`;
-  if (qs("trend", null) || qs("cash", null)) return "?nav=home";
+  if (qs("trend", null) || qs("cash", null) || qs("cal", null)) return "?nav=home";
   return null;
 }
 

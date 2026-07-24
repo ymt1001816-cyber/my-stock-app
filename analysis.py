@@ -31,7 +31,8 @@ def _fmt_pct(x):
 
 
 def analyze_holding(q: dict, shares: float, avg_cost: float,
-                    stop_price: float, rsi_val, stop_pct: float = 15.0) -> dict:
+                    stop_price: float, rsi_val, stop_pct: float = 15.0,
+                    macd_val=None, vol_ratio=None) -> dict:
     """回傳持股的綜合判斷。"""
     price = q.get("price") or 0.0
     ma50 = q.get("ma50") or 0.0
@@ -72,6 +73,15 @@ def analyze_holding(q: dict, shares: float, avg_cost: float,
             score -= 1; reasons.append(f"🟠 RSI {rsi_val:.0f} 過熱，短線追高風險")
         elif rsi_val <= 30:
             score += 1; reasons.append(f"🔵 RSI {rsi_val:.0f} 超賣，可能有反彈")
+    # MACD 金叉／死叉（柱狀圖由負轉正／由正轉負）
+    if macd_val is not None:
+        if macd_val["prev_hist"] <= 0 and macd_val["hist"] > 0:
+            score += 1; reasons.append("🔵 MACD 出現黃金交叉，動能轉強")
+        elif macd_val["prev_hist"] >= 0 and macd_val["hist"] < 0:
+            score -= 1; reasons.append("🟠 MACD 出現死亡交叉，動能轉弱")
+    # 成交量異常放大
+    if vol_ratio is not None and vol_ratio >= 2:
+        reasons.append(f"📊 成交量是 20 日均量的 {vol_ratio:.1f} 倍，留意消息面波動")
     # 損益 / 停損
     hit_stop = bool(stop_price and price <= stop_price)
     if hit_stop:
@@ -99,6 +109,7 @@ def analyze_holding(q: dict, shares: float, avg_cost: float,
         "label": label, "emoji": emoji, "color": color, "score": score,
         "reasons": reasons or ["ℹ️ 無明顯訊號，維持觀察。"],
         "pl_pct": pl_pct, "upside": upside, "rsi": rsi_val,
+        "macd": macd_val, "vol_ratio": vol_ratio,
         "target": target, "rec": REC_ZH.get(rec, "無"),
         # 目標與停損參考價
         "t10": price * 1.10, "t20": price * 1.20,
