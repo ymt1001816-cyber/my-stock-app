@@ -504,15 +504,20 @@ let detailRange = "1mo";
 let detailCache = null;
 
 async function renderDetail(symbol, fromNav = "hold") {
+  symbol = symbol.toUpperCase();
   const app = document.getElementById("app");
   app.innerHTML = `<button class="btn-back" id="backBtn">←</button>
     <div id="detailBody">${skeletonDetail()}</div>` + renderBottomNav(fromNav);
   document.getElementById("backBtn").addEventListener("click", () => navigateTo(`?nav=${fromNav}`));
 
+  // 上一頁點進來前如果已經背景預抓過這檔（滑動切換的上一/下一檔常常就是），直接吃現成的，
+  // 不用再重新打一次一樣的 API；沒預抓到才照原本方式現抓。
+  const pre = detailRange === "1mo" ? detailPrefetchCache.get(symbol) : null;
+  if (pre) detailPrefetchCache.delete(symbol);
   // 主要資料跟預設區間的走勢圖是兩個獨立的 API，同時發出去、不要一個等完才發下一個，
   // 不然點進個股頁的等待時間會是兩份疊加起來。
-  const chartPromise = api(`/chart/${encodeURIComponent(symbol)}?range=${detailRange}`);
-  const d = await api(`/holdings/${encodeURIComponent(symbol)}`);
+  const chartPromise = pre ? pre.chartPromise : api(`/chart/${encodeURIComponent(symbol)}?range=${detailRange}`);
+  const d = pre ? await pre.dataPromise : await api(`/holdings/${encodeURIComponent(symbol)}`);
   detailCache = d;
   const body = document.getElementById("detailBody");
 
@@ -641,7 +646,9 @@ async function renderDetail(symbol, fromNav = "hold") {
   });
   // 預設區間的走勢圖一開始就跟主要資料同時發出去了，這裡直接吃那個 promise 的結果，
   // 不要再重新打一次 /chart（不然就白平行了）。
-  drawChartPoints(await chartPromise);
+  const { points } = await chartPromise;
+  drawChartPoints(points);
+  prefetchNeighbors();
 }
 
 function statGrid(items) {
@@ -1265,6 +1272,62 @@ function detailSwipeTargets() {
   };
 }
 
+function _symFromUrl(url) {
+  const m = /[?&]sym=([^&]+)/.exec(url || "");
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
+// 個股詳細頁一進來，就順便把左右滑得到的上一檔／下一檔背景先抓好，使用者真的滑過去時
+// 直接吃現成的，感覺不到等待；沒真的滑過去也沒關係，資料頂多沒用到，不影響其他功能。
+const detailPrefetchCache = new Map(); // symbol -> {dataPromise, chartPromise}
+
+function prefetchDetail(symbol) {
+  if (!symbol || detailPrefetchCache.has(symbol)) return;
+  const dataPromise = api(`/holdings/${encodeURIComponent(symbol)}`);
+  const chartPromise = api(`/chart/${encodeURIComponent(symbol)}?range=1mo`);
+  // 使用者最後沒真的滑過去，這兩個 promise 就沒人 await——先接一個空 catch，
+  // 純粹只是不要讓瀏覽器主控台跳 unhandled rejection，不影響之後真的用到時能不能收到結果。
+  dataPromise.catch(() => {});
+  chartPromise.catch(() => {});
+  detailPrefetchCache.set(symbol, { dataPromise, chartPromise });
+}
+
+function prefetchNeighbors() {
+  const t = detailSwipeTargets();
+  if (!t) return;
+  prefetchDetail(_symFromUrl(t.left));
+  prefetchDetail(_symFromUrl(t.right));
+}
+
+// 滑動中先讓使用者看到「放開會切到哪一檔」：清單資料本來就在本機（holdData/watchData），
+// 不用等網路就能顯示代號＋現價。目標是回清單（沒有 sym）就顯示「回清單」。
+function swipePeekLabel(url, navKey) {
+  const sym = _symFromUrl(url);
+  if (!sym) return `<span class="sym">↩ 回清單</span>`;
+  const cache = navKey === "watch" ? watchData : holdData;
+  const row = cache && !cache.empty ? cache.rows.find(r => r.symbol === sym) : null;
+  const priceTxt = row && row.price_usd !== undefined && row.price_usd !== null ? usdOnly(row.price_usd) : "";
+  return `<span class="sym">${esc(sym)}</span>${priceTxt ? `<span class="px">${esc(priceTxt)}</span>` : ""}`;
+}
+
+function showSwipePeek(side, html, strength) {
+  let el = document.getElementById("swipePeek");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "swipePeek";
+    el.className = "swipe-peek";
+    document.body.appendChild(el);
+  }
+  el.className = `swipe-peek ${side}`;
+  el.style.opacity = String(Math.min(1, strength));
+  el.innerHTML = `<span class="arrow">${side === "left" ? "→" : "←"}</span>${html}`;
+}
+
+function hideSwipePeek() {
+  const el = document.getElementById("swipePeek");
+  if (el) el.style.opacity = "0";
+}
+
 // 左右滑動換頁：手指移動時畫面就即時跟著滑（有阻尼），放開後再決定是換頁還是彈回原位，
 // 不是像之前那樣放開才觸發，滑動的當下要看得到回饋。
 function bindSwipeNav() {
@@ -1295,7 +1358,14 @@ function bindSwipeNav() {
     const backTarget = subPageBackTarget();
     let damp;
     if (swipeTargets) {
-      damp = (dx > 0 ? swipeTargets.right : swipeTargets.left) ? 0.85 : 0.35;
+      const target = dx > 0 ? swipeTargets.right : swipeTargets.left;
+      damp = target ? 0.85 : 0.35;
+      if (target) {
+        showSwipePeek(dx > 0 ? "left" : "right",
+          swipePeekLabel(target, qs("nav", "home")), Math.abs(dx) / 100);
+      } else {
+        hideSwipePeek();
+      }
     } else if (backTarget) {
       damp = dx > 0 ? 0.85 : 0.35; // 子頁面：往右（返回）正常跟手，往左沒地方去所以加阻尼
     } else {
@@ -1312,6 +1382,7 @@ function bindSwipeNav() {
   document.addEventListener("touchend", () => {
     if (!dragging) { deciding = true; return; }
     dragging = false; deciding = true;
+    hideSwipePeek();
     const swipeTargets = detailSwipeTargets();
     if (swipeTargets) {
       if (dx > 70 && swipeTargets.right) { finishSwipeTo(swipeTargets.right, "right"); return; }
