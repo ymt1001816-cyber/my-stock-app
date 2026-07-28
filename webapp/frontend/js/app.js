@@ -30,14 +30,23 @@ function colorOf(x) {
 
 // 股票 logo：用真正的 <img>（可以 lazy-load、抓不到圖時 onerror 直接移除，
 // 露出底下 wrapper 的中性底色，不會出現「圖片壞掉」的破圖示）。
-function logoImg(symbol, size, radius, url) {
+function logoImg(symbol, size = 44, radius, url) {
   url = url || `https://financialmodelingprep.com/image-stock/${symbol}.png`;
-  return `<img src="${url}" alt="" loading="lazy" decoding="async"
-    style="width:78%;height:78%;object-fit:contain;display:block;margin:11% auto"
-    onerror="this.remove()">`;
+  // logo 是打第三方 CDN，常常要等一下才會出現；先用代號字母當佔位，圖片載入完
+  // 淡入蓋過去，感覺才不會像卡住，而不是空白格子晾在那邊。
+  const initial = esc(String(symbol).slice(0, 2));
+  const fs = Math.round(size * 0.34);
+  return `<span style="position:relative;display:block;width:100%;height:100%">
+    <span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+      font-size:${fs}px;font-weight:800;color:var(--sub)">${initial}</span>
+    <img src="${url}" alt="" loading="lazy" decoding="async"
+      style="position:relative;z-index:1;width:78%;height:78%;object-fit:contain;display:block;margin:11% auto;
+        opacity:0;transition:opacity .25s"
+      onload="this.style.opacity=1" onerror="this.remove()"></span>`;
 }
 function logoWrap(symbol, size, radius, extraStyle = "", url) {
-  return `<div style="width:${size}px;height:${size}px;flex:0 0 auto;border-radius:${radius}px;
+  // logo 統一改圓形（不管呼叫端傳進來的 radius 是多少）
+  return `<div style="width:${size}px;height:${size}px;flex:0 0 auto;border-radius:50%;
     background:var(--logo-bg);border:1px solid var(--logo-border);overflow:hidden;${extraStyle}">
     ${logoImg(symbol, size, radius, url)}</div>`;
 }
@@ -500,6 +509,9 @@ async function renderDetail(symbol, fromNav = "hold") {
     <div id="detailBody">${skeletonDetail()}</div>` + renderBottomNav(fromNav);
   document.getElementById("backBtn").addEventListener("click", () => navigateTo(`?nav=${fromNav}`));
 
+  // 主要資料跟預設區間的走勢圖是兩個獨立的 API，同時發出去、不要一個等完才發下一個，
+  // 不然點進個股頁的等待時間會是兩份疊加起來。
+  const chartPromise = api(`/chart/${encodeURIComponent(symbol)}?range=${detailRange}`);
   const d = await api(`/holdings/${encodeURIComponent(symbol)}`);
   detailCache = d;
   const body = document.getElementById("detailBody");
@@ -570,11 +582,11 @@ async function renderDetail(symbol, fromNav = "hold") {
       if (p.macd) {
         const crossedUp = p.macd.prev_hist <= 0 && p.macd.hist > 0;
         const crossedDown = p.macd.prev_hist >= 0 && p.macd.hist < 0;
-        if (crossedUp) { macdTxt = "剛出現黃金交叉"; macdColor = "#1971c2"; }
-        else if (crossedDown) { macdTxt = "剛出現死亡交叉"; macdColor = ORANGE; }
+        if (crossedUp) { macdTxt = "黃金交叉"; macdColor = "#1971c2"; }
+        else if (crossedDown) { macdTxt = "死亡交叉"; macdColor = ORANGE; }
         else { macdTxt = p.macd.hist > 0 ? "偏多" : "偏空"; macdColor = p.macd.hist > 0 ? GREEN : ORANGE; }
       }
-      const volTxt = p.vol_ratio !== null ? `${p.vol_ratio.toFixed(1)} 倍 20 日均量` : "—";
+      const volTxt = p.vol_ratio !== null ? `${p.vol_ratio.toFixed(1)}倍均量` : "—";
       const volColor = p.vol_ratio !== null && p.vol_ratio >= 2 ? ORANGE : GREY;
       html += sec("📡 更多技術訊號") + statGrid([
         ["RSI (14)", rsiTxt, rsiColor],
@@ -627,7 +639,9 @@ async function renderDetail(symbol, fromNav = "hold") {
       b.classList.toggle("active", b.dataset.value === val));
     await loadChart(symbol);
   });
-  await loadChart(symbol);
+  // 預設區間的走勢圖一開始就跟主要資料同時發出去了，這裡直接吃那個 promise 的結果，
+  // 不要再重新打一次 /chart（不然就白平行了）。
+  drawChartPoints(await chartPromise);
 }
 
 function statGrid(items) {
@@ -641,16 +655,21 @@ function statCardGroup(items) {
     `<div class="cell"><div class="l">${esc(l)}</div><div class="v" style="color:${c}">${v}</div></div>`).join("")}</div></div>`;
 }
 
-async function loadChart(symbol) {
+function drawChartPoints(points) {
   const wrap = document.getElementById("chartWrap");
-  wrap.innerHTML = skeletonBlock(260);
-  const { points } = await api(`/chart/${encodeURIComponent(symbol)}?range=${detailRange}`);
   const up = points.length > 1 ? points[points.length - 1].v >= points[0].v : true;
   drawLineChart(wrap, points, {
     color: up ? GREEN : RED,
     fillColor: up ? "rgba(74,154,108,0.10)" : "rgba(194,102,97,0.10)",
     moneyFmt: v => usdOnly(v),
   });
+}
+
+async function loadChart(symbol) {
+  const wrap = document.getElementById("chartWrap");
+  wrap.innerHTML = skeletonBlock(260);
+  const { points } = await api(`/chart/${encodeURIComponent(symbol)}?range=${detailRange}`);
+  drawChartPoints(points);
 }
 
 // ------------------------------------------------------------------
@@ -1228,6 +1247,24 @@ function subPageBackTarget() {
   return null;
 }
 
+// 個股詳細頁左右滑動：切到清單（持股／追蹤清單，看是從哪裡點進來的）裡的上一檔／下一檔股票。
+// 清單順序沿用目前畫面上看到的順序（holdData/watchData 都是進清單頁時就抓好、照顯示順序存的）。
+// 滑到清單開頭再往右滑，就回上一頁的清單；找不到清單快取（例如重新整理後直接落在詳細頁）
+// 就退回「滑動只能返回上一頁」的舊行為，交給 subPageBackTarget 處理。
+function detailSwipeTargets() {
+  const sym = qs("sym", null);
+  if (!sym) return null;
+  const navKey = qs("nav", "home");
+  const cache = navKey === "watch" ? watchData : holdData;
+  const list = (cache && !cache.empty) ? cache.rows.map(r => r.symbol) : [];
+  const idx = list.indexOf(sym.toUpperCase());
+  if (idx === -1) return null;
+  return {
+    right: idx > 0 ? `?nav=${navKey}&sym=${encodeURIComponent(list[idx - 1])}` : `?nav=${navKey}`,
+    left: idx < list.length - 1 ? `?nav=${navKey}&sym=${encodeURIComponent(list[idx + 1])}` : null,
+  };
+}
+
 // 左右滑動換頁：手指移動時畫面就即時跟著滑（有阻尼），放開後再決定是換頁還是彈回原位，
 // 不是像之前那樣放開才觸發，滑動的當下要看得到回饋。
 function bindSwipeNav() {
@@ -1254,9 +1291,12 @@ function bindSwipeNav() {
     }
     if (!dragging) return;
     dx = rawDx;
+    const swipeTargets = detailSwipeTargets();
     const backTarget = subPageBackTarget();
     let damp;
-    if (backTarget) {
+    if (swipeTargets) {
+      damp = (dx > 0 ? swipeTargets.right : swipeTargets.left) ? 0.85 : 0.35;
+    } else if (backTarget) {
       damp = dx > 0 ? 0.85 : 0.35; // 子頁面：往右（返回）正常跟手，往左沒地方去所以加阻尼
     } else {
       const order = NAV.map(n => n.key);
@@ -1272,6 +1312,13 @@ function bindSwipeNav() {
   document.addEventListener("touchend", () => {
     if (!dragging) { deciding = true; return; }
     dragging = false; deciding = true;
+    const swipeTargets = detailSwipeTargets();
+    if (swipeTargets) {
+      if (dx > 70 && swipeTargets.right) { finishSwipeTo(swipeTargets.right, "right"); return; }
+      if (dx < -70 && swipeTargets.left) { finishSwipeTo(swipeTargets.left, "left"); return; }
+      snapBack(app);
+      return;
+    }
     const backTarget = subPageBackTarget();
     if (backTarget) {
       if (dx > 70) finishSwipeTo(backTarget, "right");

@@ -310,11 +310,22 @@ def get_symbols():
 def get_holding_detail(symbol: str):
     """個股詳細頁：報價、我的部位、投資成果、停損目標、續抱判斷、關鍵數據、新聞。"""
     symbol = symbol.upper().strip()
-    q = mk.get_quote(symbol)
     hold = load_holdings()
     row = hold[hold["symbol"] == symbol]
+    is_held = not row.empty
+
+    # get_quote / get_chart / get_news 互相獨立，平行打才不會三個網路來回疊加，
+    # 個股詳細頁點進去才不會等那麼久。
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        q_f = ex.submit(mk.get_quote, symbol)
+        chart_f = ex.submit(mk.get_chart, symbol, "6mo") if is_held else None
+        news_f = ex.submit(mk.get_news, symbol, 4)
+        q = q_f.result()
+        daily = chart_f.result() if chart_f else None
+        news = news_f.result()
+
     position = None
-    if not row.empty:
+    if is_held:
         r = row.iloc[0]
         shares = float(r["shares"] or 0)
         avg = float(r["avg_cost"] or 0)
@@ -330,7 +341,6 @@ def get_holding_detail(symbol: str):
         realized = float(sh[sh["type"] != "配息"]["pl_usd"].sum()) if len(sh) else 0.0
         divs = float(sh[sh["type"] == "配息"]["pl_usd"].sum()) if len(sh) else 0.0
 
-        daily = mk.get_chart(symbol, period="6mo")
         rsi_val = mk.rsi(daily["Close"]) if not daily.empty else None
         macd_val = mk.macd(daily["Close"]) if not daily.empty else None
         vol_ratio = mk.volume_ratio(daily["Volume"]) if not daily.empty and "Volume" in daily else None
@@ -357,7 +367,6 @@ def get_holding_detail(symbol: str):
             "rsi": rsi_val, "macd": macd_val, "vol_ratio": vol_ratio,
         }
 
-    news = mk.get_news(symbol, limit=4)
     return {
         "symbol": symbol, "name": q["name"], "logo_url": mk.logo_url(symbol),
         "biz": mk.biz_zh(symbol, q["industry"]),
