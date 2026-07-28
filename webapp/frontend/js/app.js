@@ -4,12 +4,23 @@ const RED = "#e0405a";
 const GREY = "#6b7280";
 const ORANGE = "#d9822b";
 
+// 底部導覽用同一套線條風格的 SVG icon（取代原本東拼西湊的 emoji），viewBox/線寬統一，
+// 顏色跟粗細都交給 CSS（stroke="currentColor"），才能跟 .navlink.active 的強調色連動。
+const ICON_SVG_ATTRS = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"';
+const NAV_ICONS = {
+  home: `<svg ${ICON_SVG_ATTRS}><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 9.5V20a1 1 0 0 0 1 1H9a1 1 0 0 0 1-1v-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v4a1 1 0 0 0 1 1h2.5a1 1 0 0 0 1-1V9.5"/></svg>`,
+  hold: `<svg ${ICON_SVG_ATTRS}><rect x="3" y="7.5" width="18" height="12" rx="2"/><path d="M8.5 7.5V6a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v1.5"/><path d="M3 13h18"/></svg>`,
+  watch: `<svg ${ICON_SVG_ATTRS}><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg>`,
+  stats: `<svg ${ICON_SVG_ATTRS}><path d="M5 20V10"/><path d="M12 20V4"/><path d="M19 20v-7"/></svg>`,
+  brief: `<svg ${ICON_SVG_ATTRS}><path d="M7 3.5h7l4 4V19a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 19V5A1.5 1.5 0 0 1 7 3.5Z"/><path d="M14 3.5V8h4"/><path d="M9 13h6M9 16h6"/></svg>`,
+};
+
 const NAV = [
-  { key: "home", ic: "🏠", label: "總覽" },
-  { key: "hold", ic: "📦", label: "持股" },
-  { key: "watch", ic: "👀", label: "追蹤" },
-  { key: "stats", ic: "📊", label: "統計" },
-  { key: "brief", ic: "📰", label: "簡報" },
+  { key: "home", ic: NAV_ICONS.home, label: "總覽" },
+  { key: "hold", ic: NAV_ICONS.hold, label: "持股" },
+  { key: "watch", ic: NAV_ICONS.watch, label: "追蹤" },
+  { key: "stats", ic: NAV_ICONS.stats, label: "統計" },
+  { key: "brief", ic: NAV_ICONS.brief, label: "簡報" },
 ];
 
 const state = { cur: "USD", rate: 0, cash: 0 };
@@ -42,7 +53,8 @@ function logoImg(symbol, size = 44, radius, url) {
     <img src="${url}" alt="" loading="lazy" decoding="async"
       style="position:relative;z-index:1;width:78%;height:78%;object-fit:contain;display:block;margin:11% auto;
         opacity:0;transition:opacity .25s"
-      onload="this.style.opacity=1" onerror="this.remove()"></span>`;
+      onload="this.previousElementSibling.style.display='none';this.style.opacity=1"
+      onerror="this.remove()"></span>`;
 }
 function logoWrap(symbol, size, radius, extraStyle = "", url) {
   // logo 統一改圓形（不管呼叫端傳進來的 radius 是多少）
@@ -176,7 +188,7 @@ async function renderHome() {
   }
 
   const hero = `<a href="?nav=home&trend=1" class="hero-link" style="text-decoration:none;color:inherit;display:block">
-    <div class="hero-plain">
+    <div class="hero-card">
       <div class="wl"><span>資產總額 · 持股＋現金</span><span class="arrow">›</span></div>
       <div class="wb">${mh(s.assets_usd)}</div>
       <div class="ws">持股 ${mh(s.total_mv_usd)}</div>
@@ -199,10 +211,13 @@ async function renderHome() {
 
   let allocHtml = "";
   if (s.total_mv_usd) {
-    const bar = s.allocation.map(a => `<span style="width:${a.pct.toFixed(2)}%;background:${a.color}"></span>`).join("");
     const legend = s.allocation.map(a => `<div class="legend"><span><span class="dot" style="background:${a.color}"></span>${esc(a.name)}</span>
       <span><b>${mh(a.value_usd)}</b>　<span style="color:#6b7280">${a.pct.toFixed(1)}%</span></span></div>`).join("");
-    allocHtml = sec("📊 資產配置") + `<div class="alloccard"><div class="allocbar">${bar}</div>${legend}</div>`;
+    allocHtml = sec("📊 資產配置") + `<div class="alloccard">
+      <div class="alloc-donut-row">
+        <div class="alloc-donut-wrap"><canvas id="allocDonut"></canvas></div>
+        <div class="alloc-legend-col">${legend}</div>
+      </div></div>`;
   }
 
   let winnersHtml = "";
@@ -237,6 +252,11 @@ async function renderHome() {
   body.innerHTML = hero + smallCards + cashStrip + calStrip +
     `<div class="hint">👉 <b>點資產總額看資產走勢</b>　·　<b>點可用資金設定金額</b></div>` +
     allocHtml + winnersHtml + alertsHtml + renderFooter();
+
+  if (s.total_mv_usd) {
+    const donutCanvas = document.getElementById("allocDonut");
+    if (donutCanvas) drawDonutChart(donutCanvas, s.allocation.map(a => ({ value: a.value_usd, color: a.color })));
+  }
 }
 
 // ------------------------------------------------------------------
@@ -290,6 +310,11 @@ function stockRowHtml(r, navKey = "hold") {
        <div class="chip" style="background:${plColor}17;color:${plColor}">${pctStr(r.pl_pct)}</div>`
     : `<div class="nm">${usdOnly(r.price_usd)}</div>
        <div class="chip" style="background:${plColor}17;color:${plColor}">${pctStr(r.day_pct)}</div>`;
+  const hasSpark = Array.isArray(r.spark) && r.spark.length > 1;
+  const sparkColor = colorOf(r.spark && r.spark.length > 1 ? r.spark[r.spark.length - 1] - r.spark[0] : 0);
+  const spark = hasSpark
+    ? `<div class="hitem-spark"><canvas data-spark='${esc(JSON.stringify(r.spark))}' data-spark-color="${sparkColor}"></canvas></div>`
+    : "";
   return `<a class="hlink" href="?nav=${navKey}&sym=${encodeURIComponent(r.symbol)}">
     <div class="hitem">
       <div class="hitem-left">
@@ -299,11 +324,23 @@ function stockRowHtml(r, navKey = "hold") {
           <div class="sub">${esc(sub)}</div>
         </div>
       </div>
+      ${spark}
       <div class="hitem-right">
         ${right}
       </div>
     </div>
   </a>`;
+}
+
+// 畫面上所有 stockRowHtml 產生的 sparkline canvas 一次補畫（innerHTML 塞進去的 <canvas>
+// 是空的，要另外抓 data-spark 屬性用真正的 canvas API 畫線）。
+function paintSparklines(root) {
+  (root || document).querySelectorAll("canvas[data-spark]").forEach(canvas => {
+    if (canvas.dataset.painted) return;
+    canvas.dataset.painted = "1";
+    const values = JSON.parse(canvas.dataset.spark);
+    drawSparkline(canvas, values, canvas.dataset.sparkColor);
+  });
 }
 
 function renderAddForm() {
@@ -447,8 +484,8 @@ onSeg("submit", val => submitTransaction(val));
 
 async function loadHoldData(force = false) {
   if (force || !holdData) {
-    holdData = await api("/holdings");
-    await loadSymbols();
+    const [hd] = await Promise.all([api("/holdings"), loadSymbols()]);
+    holdData = hd;
   }
 }
 
@@ -474,6 +511,7 @@ function rerenderHoldBody() {
   const panel = document.getElementById("addTxPanel");
   if (panel) panel.innerHTML = renderAddForm();
   bindSellCaption();
+  paintSparklines(body);
 }
 
 async function renderHoldList() {

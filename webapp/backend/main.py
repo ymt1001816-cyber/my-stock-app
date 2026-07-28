@@ -271,8 +271,25 @@ def get_holdings(sort: str = "mv"):
     hold = load_holdings()
     if hold.empty:
         return {"empty": True, "rows": []}
-    rows = enrich_holdings(hold)
+
+    # 報價（enrich_holdings 內部平行打 get_light）跟走勢圖 sparkline 是兩批互相獨立的
+    # Yahoo 請求，改成同時開兩個執行緒池平行跑，不要一批做完才做下一批（不然這頁的等待
+    # 時間會變成兩批時間相加）。
+    symbols = hold["symbol"].tolist()
+    with ThreadPoolExecutor(max_workers=2) as outer_ex:
+        rows_f = outer_ex.submit(enrich_holdings, hold)
+        charts_f = outer_ex.submit(
+            lambda: list(ThreadPoolExecutor(max_workers=min(8, len(symbols))).map(
+                lambda s: mk.get_chart(s, period="1mo", interval="1d"), symbols)))
+        rows = rows_f.result()
+        charts = charts_f.result()
     total_mv = sum(r["market_value"] for r in rows) or 1
+
+    # 清單每一列旁邊的小走勢圖（sparkline）：近一個月收盤價，跟其他地方共用同一個
+    # get_chart 快取（300 秒），不會另外造成太多額外的 Yahoo 請求。
+    sparks = {s: ([] if ch.empty else [round(float(v), 4) for v in ch["Close"].tolist()])
+              for s, ch in zip(symbols, charts)}
+
     out = []
     for r in rows:
         dca = an.is_dca(r.get("note"))
@@ -285,6 +302,7 @@ def get_holdings(sort: str = "mv"):
             "weight_pct": r["market_value"] / total_mv * 100,
             "pl_usd": r["pl"], "pl_pct": r["pl_pct"],
             "emoji": v["emoji"], "label": v["label"],
+            "spark": sparks.get(r["symbol"], []),
         })
     if sort == "symbol":
         out.sort(key=lambda r: r["symbol"])

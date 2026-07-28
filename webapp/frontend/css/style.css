@@ -3,14 +3,16 @@
 :root{
   --ink:#1e1e20; --sub:#6b7280; --line:rgba(17,24,39,.08);
   --card:#ffffff; --card2:#f3f4f6;
+  --card-grad:linear-gradient(180deg, #ffffff 0%, #fbfbfd 100%);
+  --card-hl:inset 0 1px 0 rgba(255,255,255,.8);
   --accent:#f2941f; --accent-dk:#c96e0a; --accent-lt:#fbdca3; --accent-text:var(--accent-dk);
   --green:#18a558; --red:#e0405a;
   --logo-bg:#eceef1; --logo-border:#dde1e6;
   --bottomnav-bg:rgba(255,255,255,.86); --bottomnav-sh:0 -8px 26px rgba(15,23,42,.10);
   --r-sm:12px; --r-md:16px; --r-lg:22px; --r-xl:26px;
   --sh-sm:0 1px 3px rgba(17,24,39,.07);
-  --sh-md:0 3px 10px rgba(17,24,39,.08), 0 1px 3px rgba(17,24,39,.06);
-  --sh-lg:0 14px 32px -8px rgba(15,23,42,.18), 0 2px 8px rgba(15,23,42,.07);
+  --sh-md:0 4px 14px rgba(17,24,39,.10), 0 1px 3px rgba(17,24,39,.06);
+  --sh-lg:0 16px 36px -10px rgba(15,23,42,.20), 0 2px 8px rgba(15,23,42,.08);
   --bounce:cubic-bezier(.34,1.56,.64,1);
 }
 *{box-sizing:border-box}
@@ -22,6 +24,9 @@ body{margin:0;background:
   overscroll-behavior-y:none;
   font-family:'Noto Sans TC',-apple-system,'Segoe UI','PingFang TC','Microsoft JhengHei',sans-serif;
   font-size:15px;color:var(--ink)}
+/* 金額/百分比數字統一用等寬數字（tabular figures），一堆數字直式排列時位數才會對齊，
+   看起來比較像正式的財務 App，不會因為每個數字寬度不同而東倒西歪。 */
+.wb,.nm,.v,.chip,.hero-card .wb{font-variant-numeric:tabular-nums}
 #app{max-width:1080px;margin:0 auto;
   padding:calc(1.8rem + env(safe-area-inset-top)) 1rem 3rem}
 h1{font-size:1.42rem;font-weight:800;letter-spacing:.1px;margin:0}
@@ -36,8 +41,8 @@ button{font-family:inherit;cursor:pointer}
 
 /* 幣別切換：小小一顆藥丸按鈕 */
 .btn-pill{height:38px;padding:0 14px;border-radius:999px;font-size:.78rem;font-weight:700;
-  white-space:nowrap;background:var(--card);border:1px solid var(--line);
-  box-shadow:var(--sh-sm);color:var(--ink);transition:transform .2s var(--bounce),box-shadow .2s}
+  white-space:nowrap;background:var(--card-grad);border:1px solid var(--line);
+  box-shadow:var(--sh-sm), var(--card-hl);color:var(--ink);transition:transform .2s var(--bounce),box-shadow .2s}
 .btn-pill:hover{transform:translateY(-1px) scale(1.02);box-shadow:var(--sh-md)}
 .btn-pill:active{transform:scale(.95)}
 
@@ -67,21 +72,28 @@ button{font-family:inherit;cursor:pointer}
 .sec::before{content:'';position:absolute;left:0;top:2px;bottom:2px;width:4px;
   border-radius:99px;background:linear-gradient(180deg,var(--accent),var(--accent-dk))}
 
-/* 淨資產：純文字，無底色無邊框 */
-.hero-plain{padding:6px 2px 4px;transition:transform .2s var(--bounce)}
-.hero-link:active .hero-plain{transform:scale(.98)}
-.hero-plain .wl{font-size:.85rem;font-weight:700;color:var(--sub);letter-spacing:.2px;
+/* 淨資產：用品牌橘色調的淺色漸層卡當視覺焦點，跟底下白色卡片群拉出層次，
+   但不要用太深/太黑的顏色（跟頁面其他地方反差太大，會顯得突兀）。 */
+.hero-card{position:relative;overflow:hidden;padding:20px 20px 22px;margin:4px 0 14px;
+  border-radius:var(--r-xl);background:linear-gradient(135deg,#fff3e2 0%,#ffdfab 100%);
+  box-shadow:var(--sh-lg);transition:transform .2s var(--bounce)}
+.hero-link:active .hero-card{transform:scale(.98)}
+.hero-card::after{content:'';position:absolute;top:-45%;right:-15%;width:220px;height:220px;
+  background:radial-gradient(circle, rgba(242,148,31,.25), transparent 70%);pointer-events:none}
+.hero-card .wl{position:relative;font-size:.85rem;font-weight:700;color:var(--accent-dk);letter-spacing:.2px;
   display:flex;justify-content:space-between;align-items:center}
-.hero-plain .wl .arrow{font-size:1.2rem;font-weight:700;color:var(--sub)}
-.hero-plain .wb{font-size:2rem;font-weight:800;color:var(--ink);margin:6px 0 3px;letter-spacing:.2px}
-.hero-plain .ws{font-size:.85rem;color:var(--sub);font-weight:500}
+.hero-card .wl .arrow{font-size:1.2rem;font-weight:700;color:var(--accent-dk)}
+.hero-card .wb{position:relative;font-size:2.15rem;font-weight:800;margin:8px 0 4px;letter-spacing:.2px;
+  background:linear-gradient(135deg, #4a2e08 20%, #7a4d14 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent}
+.hero-card .ws{position:relative;font-size:.85rem;color:#8a6633;font-weight:600}
 
 /* 兩張等大小卡：今日損益、未實現損益 */
 .wrow{display:flex;gap:9px;margin:0 0 8px}
 .wrow>a{flex:1 1 0;min-width:0;display:block;text-decoration:none!important;color:inherit!important}
 .wcard.sm{min-width:0;flex:1 1 0;padding:12px 11px;border-radius:var(--r-lg);
-  background:var(--card);border:1px solid var(--line);
-  box-shadow:var(--sh-sm);color:var(--ink);display:flex;flex-direction:column;
+  background:var(--card-grad);border:1px solid var(--line);
+  box-shadow:var(--sh-sm), var(--card-hl);color:var(--ink);display:flex;flex-direction:column;
   justify-content:space-between;min-height:78px}
 .wcard.sm .wl{font-size:.66rem;letter-spacing:0;color:var(--sub)}
 .wcard.sm .wb{font-size:1.12rem;margin:3px 0 1px}
@@ -89,10 +101,10 @@ button{font-family:inherit;cursor:pointer}
 
 /* 可用資金：細長條 */
 .cashstrip{display:flex;align-items:center;justify-content:space-between;gap:8px;
-  background:var(--card);border:1px solid var(--line);border-radius:var(--r-md);
-  padding:11px 16px;margin:0 0 10px;box-shadow:var(--sh-sm);color:var(--ink);
+  background:var(--card-grad);border:1px solid var(--line);border-radius:var(--r-md);
+  padding:11px 16px;margin:0 0 10px;box-shadow:var(--sh-sm), var(--card-hl);color:var(--ink);
   text-decoration:none;transition:box-shadow .2s,transform .2s var(--bounce)}
-.cashstrip:hover{box-shadow:var(--sh-md);transform:translateY(-1px)}
+.cashstrip:hover{box-shadow:var(--sh-md), var(--card-hl);transform:translateY(-1px)}
 .cashstrip:active{transform:scale(.98)}
 .cashstrip .l{font-size:.82rem;font-weight:700;color:var(--sub)}
 .cashstrip .v{font-size:1rem;font-weight:800;margin-right:auto;margin-left:10px;color:var(--ink)}
@@ -100,11 +112,22 @@ button{font-family:inherit;cursor:pointer}
 .hint{color:var(--sub);font-size:.85rem;margin:6px 2px 0}
 
 /* 資產配置卡片 */
-.alloccard{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);
-  padding:16px 18px 8px;box-shadow:var(--sh-md);margin:6px 0 4px}
+.alloccard{background:var(--card-grad);border:1px solid var(--line);border-radius:var(--r-lg);
+  padding:16px 18px 8px;box-shadow:var(--sh-md), var(--card-hl);margin:6px 0 4px}
 .allocbar{display:flex;height:15px;border-radius:99px;overflow:hidden;margin:2px 0 12px;
   box-shadow:inset 0 0 0 1px rgba(0,0,0,.05), var(--sh-sm)}
 .allocbar span{height:100%}
+/* 手機寬度先直排（圓餅圖在上、清單在下），不然圖表跟清單擠在同一行，
+   清單那欄會窄到代號跟金額被迫換行、很難看；夠寬（平板/桌面）才並排。 */
+.alloc-donut-row{display:flex;flex-direction:column;align-items:center;gap:4px;margin-bottom:6px}
+.alloc-donut-wrap{flex:0 0 auto;width:132px;height:132px;margin:2px 0 6px}
+.alloc-donut-wrap canvas{width:100%;height:100%;display:block}
+.alloc-legend-col{flex:1 1 0;min-width:0;width:100%}
+.alloc-legend-col .legend{font-size:.86rem;padding:5px 4px}
+@media (min-width:480px){
+  .alloc-donut-row{flex-direction:row;align-items:center;gap:16px}
+  .alloc-donut-wrap{width:104px;height:104px;margin:0}
+}
 .legend{display:flex;align-items:center;justify-content:space-between;
   padding:8px 4px;border-radius:10px;font-size:.94rem;transition:background .12s}
 .legend:hover{background:var(--card2)}
@@ -112,7 +135,7 @@ button{font-family:inherit;cursor:pointer}
   box-shadow:0 0 0 3px rgba(0,0,0,.03)}
 
 /* 提醒區塊 */
-.posblock{border-radius:var(--r-md);padding:14px 18px;margin:6px 0;box-shadow:var(--sh-sm)}
+.posblock{border-radius:var(--r-md);padding:14px 18px;margin:6px 0;box-shadow:var(--sh-md)}
 
 /* 追蹤清單：整列往左滑到底＝移除，不擋住任何數字 */
 .watch-row-wrap{position:relative;overflow:hidden;border-radius:var(--r-md);margin-bottom:8px}
@@ -132,8 +155,8 @@ button{font-family:inherit;cursor:pointer}
 /* 券商風格持倉列 */
 .hlink{text-decoration:none;color:inherit;display:block}
 .hitem{display:flex;align-items:center;justify-content:space-between;gap:12px;
-  background:var(--card);padding:16px 17px;margin-bottom:10px;border-radius:var(--r-md);
-  border:1px solid var(--line);box-shadow:var(--sh-sm);
+  background:var(--card-grad);padding:16px 17px;margin-bottom:10px;border-radius:var(--r-md);
+  border:1px solid var(--line);box-shadow:var(--sh-sm), var(--card-hl);
   transition:box-shadow .2s,transform .2s var(--bounce),border-color .2s}
 .hitem:hover{box-shadow:var(--sh-md);transform:translateY(-2px) scale(1.008);border-color:rgba(242,148,31,.38)}
 .hitem:active{transform:scale(.98)}
@@ -181,16 +204,16 @@ button{font-family:inherit;cursor:pointer}
 .bcard .s{color:#586071;font-size:.86rem;margin-top:4px;line-height:1.4}
 
 /* 統計摘要合併卡片 */
-.statsummary{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);
-  padding:16px 18px;box-shadow:var(--sh-sm);margin:4px 0 2px}
+.statsummary{background:var(--card-grad);border:1px solid var(--line);border-radius:var(--r-lg);
+  padding:16px 18px;box-shadow:var(--sh-sm), var(--card-hl);margin:4px 0 2px}
 .statsummary .row+.row{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
 .statsummary .l{font-size:.78rem;color:var(--sub);font-weight:700}
 .statsummary .v{font-size:1.3rem;font-weight:800;margin-top:3px}
 .statsummary .s{font-size:.78rem;color:var(--sub);margin-top:2px}
 
 /* 關鍵數據卡片 */
-.statcardwrap{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);
-  padding:14px 16px 4px;box-shadow:var(--sh-sm);margin:4px 0 2px}
+.statcardwrap{background:var(--card-grad);border:1px solid var(--line);border-radius:var(--r-lg);
+  padding:14px 16px 4px;box-shadow:var(--sh-sm), var(--card-hl);margin:4px 0 2px}
 /* 手機寬度先用 2 欄，不然像「52週高/低」「50/200日均」這種標籤配上兩個數字的欄位，
    3 欄擠出來每格不到 100px，數字幾乎都要被迫換成兩行，看起來很擁擠。桌面/平板夠寬才切回 3 欄。 */
 .statcardwrap .grid3{display:grid;grid-template-columns:repeat(2,1fr);gap:16px 10px}
@@ -202,8 +225,8 @@ button{font-family:inherit;cursor:pointer}
 .statcardwrap .cell{padding-bottom:14px}
 .statgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin:4px 0 2px}
 .statgrid.cols-3{grid-template-columns:repeat(3,1fr);gap:8px}
-.statcell{background:var(--card);border:1px solid var(--line);border-radius:var(--r-sm);
-  padding:9px 13px;box-shadow:var(--sh-sm)}
+.statcell{background:var(--card-grad);border:1px solid var(--line);border-radius:var(--r-sm);
+  padding:9px 13px;box-shadow:var(--sh-sm), var(--card-hl)}
 .statgrid.cols-3 .statcell{padding:9px 8px}
 .statcell .l{font-size:.7rem;color:var(--sub);line-height:1.3;white-space:nowrap}
 .statcell .v{font-size:1.02rem;font-weight:700;line-height:1.35;color:var(--ink)}
@@ -223,8 +246,10 @@ button{font-family:inherit;cursor:pointer}
 .navlink:active{transform:scale(.9)}
 .navlink.active{background:linear-gradient(180deg,rgba(242,148,31,.20),rgba(242,148,31,.07));
   box-shadow:inset 0 0 0 1px rgba(242,148,31,.25)}
-.navlink .ic{font-size:1.55rem;line-height:1.1;transition:transform .25s var(--bounce)}
-.navlink.active .ic{transform:scale(1.14)}
+.navlink .ic{display:flex;align-items:center;justify-content:center;color:var(--sub);
+  transition:transform .25s var(--bounce),color .2s}
+.navlink .ic svg{width:23px;height:23px}
+.navlink.active .ic{transform:scale(1.14);color:var(--accent-dk)}
 #app{padding-bottom:84px}
 
 .plotly-chart-wrap{margin:8px 0}
@@ -257,6 +282,9 @@ button{font-family:inherit;cursor:pointer}
 .hitem-name{min-width:0}
 .hitem-name .sub{margin-top:3px;display:block}
 .hitem-right{text-align:right;flex:0 0 auto}
+.hitem-spark{flex:0 0 auto;width:44px;height:28px;margin:0 2px}
+.hitem-spark canvas{width:100%;height:100%;display:block}
+@media (min-width:420px){.hitem-spark{width:60px;margin:0 6px}}
 
 /* 表單 */
 .form-field{margin-bottom:12px}

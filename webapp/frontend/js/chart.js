@@ -8,6 +8,57 @@ function chartTheme() {
     : { grid: "#eef1f4", axisText: "#6b7280", crosshair: "rgba(30,30,32,.25)", dotStroke: "#fff", hoverBar: accent };
 }
 
+// 迷你走勢圖（sparkline）：持股清單每一列旁邊那種小圖，純畫線、沒有格線/座標/互動，
+// 越輕量越好，一頁可能要畫十幾張。
+function drawSparkline(canvas, values, color) {
+  if (!values || values.length < 2) return;
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = canvas.clientWidth || 56, cssH = canvas.clientHeight || 28;
+  canvas.width = cssW * dpr; canvas.height = cssH * dpr;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+  const lo = Math.min(...values), hi = Math.max(...values);
+  const pad = 2.5;
+  const xAt = i => pad + (i / (values.length - 1)) * (cssW - pad * 2);
+  const yAt = v => pad + (1 - (hi === lo ? 0.5 : (v - lo) / (hi - lo))) * (cssH - pad * 2);
+  ctx.beginPath();
+  values.forEach((v, i) => {
+    const x = xAt(i), y = yAt(v);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.6;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  ctx.stroke();
+}
+
+// 資產配置圓餅圖（甜甜圈）：純 canvas 畫扇形，不用任何圖表庫。
+function drawDonutChart(canvas, segments) {
+  const dpr = window.devicePixelRatio || 1;
+  const size = canvas.clientWidth || 140;
+  canvas.width = size * dpr;
+  canvas.height = size * dpr;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+  const cx = size / 2, cy = size / 2;
+  const rOuter = size / 2 - 3;
+  const rInner = rOuter * 0.6;
+  const total = segments.reduce((sum, a) => sum + a.value, 0) || 1;
+  let start = -Math.PI / 2;
+  segments.forEach(seg => {
+    const angle = (seg.value / total) * Math.PI * 2;
+    if (angle <= 0) return;
+    ctx.beginPath();
+    ctx.arc(cx, cy, rOuter, start, start + angle);
+    ctx.arc(cx, cy, rInner, start + angle, start, true);
+    ctx.closePath();
+    ctx.fillStyle = seg.color;
+    ctx.fill();
+    start += angle;
+  });
+}
+
 // 輕量走勢圖：純 canvas 畫線，不用任何圖表庫。
 // 需求：拿掉縮放/拖曳功能，改成點/觸碰一下就顯示對應日期與數值。
 function drawLineChart(container, points, { color, fillColor, moneyFmt }) {
@@ -39,7 +90,19 @@ function drawLineChart(container, points, { color, fillColor, moneyFmt }) {
   const pad = (hi - lo) * 0.12 || 1;
   lo -= pad; hi += pad;
 
-  const padL = 4, padR = 46, padT = 8, padB = 8;
+  // 右側 y 軸數字寬度不固定（USD 短、台幣動輒 7 位數字長很多），先用實際字型量出
+  // 最寬的標籤再決定要留多少邊界，不然數字長的時候會被畫到 canvas 外面直接被裁掉。
+  const axisFont = "11px -apple-system,'Segoe UI',sans-serif";
+  const gridN = 4;
+  ctx.font = axisFont;
+  let maxLabelW = 0;
+  for (let g = 0; g <= gridN; g++) {
+    const v = lo + (hi - lo) * (g / gridN);
+    const label = moneyFmt ? moneyFmt(v) : v.toFixed(2);
+    maxLabelW = Math.max(maxLabelW, ctx.measureText(label).width);
+  }
+
+  const padL = 4, padR = Math.min(cssW * 0.42, maxLabelW + 12), padT = 8, padB = 8;
   const plotW = cssW - padL - padR, plotH = cssH - padT - padB;
   const xAt = i => padL + (i / (points.length - 1)) * plotW;
   const yAt = v => padT + (1 - (v - lo) / (hi - lo)) * plotH;
@@ -51,10 +114,9 @@ function drawLineChart(container, points, { color, fillColor, moneyFmt }) {
     // y 軸網格線（右側刻度，跟原本 Plotly 版一致）
     ctx.strokeStyle = theme.grid;
     ctx.lineWidth = 1;
-    ctx.font = "11px -apple-system,'Segoe UI',sans-serif";
+    ctx.font = axisFont;
     ctx.fillStyle = theme.axisText;
     ctx.textAlign = "left";
-    const gridN = 4;
     for (let g = 0; g <= gridN; g++) {
       const v = lo + (hi - lo) * (g / gridN);
       const y = yAt(v);
@@ -184,7 +246,19 @@ function drawBarChart(container, points, { posColor, negColor, moneyFmt }) {
   const pad = (hi - lo) * 0.12 || 1;
   lo -= pad; hi += pad;
 
-  const padL = 4, padR = 46, padT = 8, padB = 8;
+  // 跟 drawLineChart 同樣的問題：台幣金額字串比美金長很多，固定 46px 會被裁掉，
+  // 先用實際字型量出最寬的標籤再決定要留多少邊界。
+  const axisFont = "11px -apple-system,'Segoe UI',sans-serif";
+  const gridN = 4;
+  ctx.font = axisFont;
+  let maxLabelW = 0;
+  for (let g = 0; g <= gridN; g++) {
+    const v = lo + (hi - lo) * (g / gridN);
+    const label = moneyFmt ? moneyFmt(v) : v.toFixed(0);
+    maxLabelW = Math.max(maxLabelW, ctx.measureText(label).width);
+  }
+
+  const padL = 4, padR = Math.min(cssW * 0.42, maxLabelW + 12), padT = 8, padB = 8;
   const plotW = cssW - padL - padR, plotH = cssH - padT - padB;
   const n = points.length;
   const slot = plotW / n;

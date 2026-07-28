@@ -329,8 +329,14 @@ def portfolio_value_series(holdings_tuple, period: str, interval: str) -> pd.Ser
         frames.append((h["Close"] * float(sh)).rename(sym))
     if not frames:
         return pd.Series(dtype=float)
-    df = pd.concat(frames, axis=1).sort_index().ffill().dropna()
-    return df.sum(axis=1)
+    # 用 outer join + ffill，不要整批 dropna：只要有一檔股票的歷史資料比較短（例如剛上市沒多久、
+    # 或 Yahoo 對某些代號本來就只給得出近期資料，實測 SKHY 一年期只有近 12 個交易日），
+    # 原本「每一欄都要有值才留下」的做法會讓整條時間序列被砍到只剩那檔股票有資料的區間，
+    # 「月」「年」兩種粒度常常因此直接縮成 1 個點、畫不出圖。改成：該檔股票還沒有資料的日期
+    # 就當作那天它沒貢獻市值（不是整列都丟掉），這樣圖表才能拉出完整區間，只是早期的總市值會
+    # 少算那幾檔資料不足的股票（現有頁面上「僅供參考」的提示本來就涵蓋這種近似）。
+    df = pd.concat(frames, axis=1).sort_index().ffill()
+    return df.sum(axis=1, min_count=1).dropna()
 
 
 @st.cache_data(ttl=300, show_spinner=False)
