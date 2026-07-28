@@ -248,11 +248,19 @@ def generate_briefing(rows, usdtwd=0, watch_syms=None) -> str:
         total_cost = sum(r["cost"] for r in rows)
         pl = total_mv - total_cost
         plpct = pl / total_cost * 100 if total_cost else 0
+        day_pl = sum((r["price"] - r["q"]["prev_close"]) * (r.get("shares") or 0)
+                     for r in rows if r["q"].get("prev_close"))
         tw = f"（約 NT&#36;{total_mv * usdtwd:,.0f}）" if usdtwd else ""
         out.append(_sec("💼 我的組合摘要"))
         gain20 = [r["symbol"] for r in rows
                   if r["pl_pct"] >= 20 and not is_dca(r.get("note"))]
-        sub = f"🎯 已達 +20%、可留意獲利了結：{'、'.join(gain20)}（定期定額標的不列入）" if gain20 else ""
+        sub_parts = []
+        day_cc = _GREEN if day_pl >= 0 else _RED
+        sub_parts.append(f"今日損益 <span style='color:{day_cc};font-weight:800'>"
+                         f"&#36;{day_pl:+,.0f}</span>")
+        if gain20:
+            sub_parts.append(f"🎯 已達 +20%、可留意獲利了結：{'、'.join(gain20)}（定期定額標的不列入）")
+        sub = "<br>".join(sub_parts)
         pl_cc = _GREEN if pl >= 0 else _RED
         title = (f"總市值 &#36;{total_mv:,.0f}{tw}，未實現損益 "
                  f"<span style='color:{pl_cc};font-weight:800'>"

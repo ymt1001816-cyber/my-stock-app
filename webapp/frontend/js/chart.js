@@ -1,3 +1,15 @@
+// 把 #rrggbb 加深(-)/加亮(+) percent%，畫長條圖漸層用（純數學調色，不用額外套件）。
+function shade(hex, percent) {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!m) return hex;
+  const adjust = c => {
+    const v = parseInt(c, 16);
+    const n = Math.max(0, Math.min(255, Math.round(v + (percent / 100) * (percent < 0 ? v : 255 - v))));
+    return n.toString(16).padStart(2, "0");
+  };
+  return `#${adjust(m[1])}${adjust(m[2])}${adjust(m[3])}`;
+}
+
 // 淺色/深色模式的格線、座標文字、十字準線顏色不一樣，畫布是純手畫的，
 // 沒辦法用 CSS 變數，只能在畫的當下自己判斷一次系統主題。
 function chartTheme() {
@@ -283,8 +295,17 @@ function drawBarChart(container, points, { posColor, negColor, moneyFmt }) {
       const x = padL + slot * i + (slot - barW) / 2;
       const y = yAt(p.v);
       const top = Math.min(y, zeroY), h = Math.abs(y - zeroY) || 1;
-      ctx.fillStyle = i === hoverIdx ? theme.hoverBar : (p.v >= 0 ? posColor : negColor);
-      ctx.fillRect(x, top, barW, h);
+      const base = i === hoverIdx ? theme.hoverBar : (p.v >= 0 ? posColor : negColor);
+      const grad = ctx.createLinearGradient(0, top, 0, top + h);
+      // 漲的長條由淺到深由上往下、跌的反過來，看起來比純色扁平塊有立體感一點。
+      if (p.v >= 0) { grad.addColorStop(0, base); grad.addColorStop(1, shade(base, -18)); }
+      else { grad.addColorStop(0, shade(base, -18)); grad.addColorStop(1, base); }
+      ctx.fillStyle = grad;
+      const r = Math.min(barW / 2, 5);
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(x, top, barW, h, r);
+      else ctx.rect(x, top, barW, h);
+      ctx.fill();
     });
   }
   paint(null);

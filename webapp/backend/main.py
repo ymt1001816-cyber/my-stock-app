@@ -542,9 +542,19 @@ def get_watchlist():
     if watch.empty:
         return {"empty": True, "rows": []}
     recs = watch.to_dict("records")
-    # 平行抓（跟持股清單同一套節流設定），不然一次看的股票一多，一支一支排隊抓會很慢
-    with ThreadPoolExecutor(max_workers=min(3, len(recs))) as ex:
-        quotes = list(ex.map(lambda w: mk.get_light(w["symbol"]), recs))
+    symbols = [w["symbol"] for w in recs]
+    # 報價跟走勢圖 sparkline 兩批互相獨立，跟持股清單一樣同時平行跑，不要一批做完才做下一批。
+    with ThreadPoolExecutor(max_workers=2) as outer_ex:
+        quotes_f = outer_ex.submit(
+            lambda: list(ThreadPoolExecutor(max_workers=min(3, len(recs))).map(
+                lambda w: mk.get_light(w["symbol"]), recs)))
+        charts_f = outer_ex.submit(
+            lambda: list(ThreadPoolExecutor(max_workers=min(8, len(symbols))).map(
+                lambda s: mk.get_chart(s, period="1mo", interval="1d"), symbols)))
+        quotes = quotes_f.result()
+        charts = charts_f.result()
+    sparks = {s: ([] if ch.empty else [round(float(v), 4) for v in ch["Close"].tolist()])
+              for s, ch in zip(symbols, charts)}
     rows = []
     for w, q in zip(recs, quotes):
         tb = w.get("target_buy")
@@ -554,6 +564,7 @@ def get_watchlist():
             "symbol": w["symbol"], "target_buy_usd": tb, "note": w.get("note") or "",
             "price_usd": q["price"], "day_pct": q["change_pct"],
             "emoji": v["emoji"], "label": v["label"],
+            "spark": sparks.get(w["symbol"], []),
         })
     return {"empty": False, "rows": rows}
 
@@ -621,7 +632,7 @@ def transaction_dividend(body: DividendIn):
 # ------------------------------------------------------------------
 @app.get("/api/stats")
 def get_stats(period: str = "all", start: str | None = None, end: str | None = None):
-    """period: all | ytd | 90d | custom（custom 時要帶 start/end，YYYY-MM-DD）"""
+    """period: all | month | ytd | 90d | custom（custom 時要帶 start/end，YYYY-MM-DD）"""
     hist = load_history()
     if hist.empty:
         return {"empty": True}
@@ -630,7 +641,9 @@ def get_stats(period: str = "all", start: str | None = None, end: str | None = N
     dmin, dmax = d.min(), d.max()
     today = date_cls.today()
 
-    if period == "ytd":
+    if period == "month":
+        p_start, p_end = today.replace(day=1), today
+    elif period == "ytd":
         p_start, p_end = date_cls(today.year, 1, 1), today
     elif period == "90d":
         p_start = date_cls.fromordinal(today.toordinal() - 90)
@@ -758,8 +771,9 @@ def get_calendar():
         quotes = list(ex.map(mk.get_quote, all_syms))
 
     # Yahoo 的財報/除息日資料常常是舊的（例如已經停止配息很久的公司，還留著幾年前
-    # 甚至幾十年前的除息日）。只留「最近 60 天內～未來」的日期，太舊的視為過期資料濾掉。
-    cutoff = date_cls.fromordinal(date_cls.today().toordinal() - 60)
+    # 甚至幾十年前的除息日）。只留「最近 30 天內～未來」的日期，太舊的視為過期資料濾掉；
+    # 這頁真正該強調的是「快來了」的事件，過去的只是留個一個月內的參考。
+    cutoff = date_cls.fromordinal(date_cls.today().toordinal() - 30)
 
     events = []
     for sym, q in zip(all_syms, quotes):

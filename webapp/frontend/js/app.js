@@ -183,7 +183,8 @@ async function renderHome() {
   const body = document.getElementById("homeBody");
 
   if (s.empty) {
-    body.innerHTML = `<p>還沒有持股資料。請到 <b>📦 我的持股</b> 新增你目前持有的股票（只需填代號、股數、平均成本）。</p>` + renderFooter();
+    body.innerHTML = emptyState("📊", "還沒有持股資料",
+      "到「📦 我的持股」新增你目前持有的股票，只需要代號、股數、平均成本。") + renderFooter();
     return;
   }
 
@@ -493,7 +494,8 @@ function rerenderHoldBody() {
   const body = document.getElementById("holdBody");
   if (!body) return;
   if (holdData.empty) {
-    body.innerHTML = `<p>還沒有持股。點右上角「➕」買進第一筆持股。</p>` + renderFooter();
+    body.innerHTML = emptyState("📦", "還沒有持股",
+      "點右上角「➕」買進第一筆持股。") + renderFooter();
     return;
   }
   const rows = [...holdData.rows];
@@ -566,13 +568,20 @@ async function renderDetail(symbol, fromNav = "hold") {
   if (d.post_price_usd) extra = `　🌙 盤後 ${usdOnly(d.post_price_usd)}（${pctStr(d.post_pct)}）`;
   const dispState = extra ? "" : stateTxt;
 
-  let html = `<h1 style="margin:0">${logoWrap(d.symbol, 40, 9,
-      "display:inline-block;vertical-align:middle;margin-right:12px", d.logo_url)}${esc(d.symbol)} · ${esc(d.name)}</h1>
-    <div style="color:#6b7280;margin:4px 0 2px">🏢 ${esc(d.biz)}　·　${esc(d.sector)}</div>
-    <div><span style="font-size:2.1rem;font-weight:800">${usdOnly(d.price_usd)}</span>
+  let html = `<div class="detail-hero">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+      ${logoWrap(d.symbol, 44, 10, "flex:0 0 auto", d.logo_url)}
+      <div style="min-width:0">
+        <div style="font-weight:800;font-size:1.25rem">${esc(d.symbol)}</div>
+        <div style="color:var(--sub);font-size:.84rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.name)}</div>
+      </div>
+    </div>
+    <div style="color:var(--sub);font-size:.84rem;margin-bottom:10px">🏢 ${esc(d.biz)}　·　${esc(d.sector)}</div>
+    <div><span class="detail-hero-price">${usdOnly(d.price_usd)}</span>
       <span style="color:${dc};font-size:1.2rem;font-weight:700">${pctStr(d.change_pct)}</span>
-      　<span style="color:#8a94a6">${dispState}</span>
-      <span style="color:#8a94a6;font-size:.9rem">${extra}</span></div>`;
+      　<span style="color:var(--sub)">${dispState}</span>
+      <span style="color:var(--sub);font-size:.9rem">${extra}</span></div>
+  </div>`;
 
   if (d.position) {
     const p = d.position;
@@ -772,7 +781,8 @@ function rerenderWatchBody() {
   const body = document.getElementById("watchBody");
   if (!body) return;
   if (watchData.empty) {
-    body.innerHTML = `<p>追蹤清單是空的。點右上角「➕」加入。</p>` + renderFooter();
+    body.innerHTML = emptyState("👀", "追蹤清單是空的",
+      "點右上角「➕」加入想觀察的股票。") + renderFooter();
     return;
   }
   body.innerHTML =
@@ -780,12 +790,13 @@ function rerenderWatchBody() {
       <span>觀察 · ${watchData.rows.length} 檔</span><span>現價　·　單日漲跌</span></div>` +
     watchData.rows.map(watchRowHtml).join("") +
     `<p class="hint">👆 點看詳細　·　👈 左滑到底移除　·　長按拖曳排序</p>` + renderFooter();
+  paintSparklines(body);
 }
 
 function watchRowHtml(w) {
   const sub = w.label + (w.target_buy_usd !== null ? ` · 目標 ${usdOnly(w.target_buy_usd)}` : "");
   const row = stockRowHtml({ symbol: w.symbol, shares: null, weight_pct: null, price_usd: w.price_usd,
-    day_pct: w.day_pct, emoji: w.emoji, _sub: sub }, "watch");
+    day_pct: w.day_pct, emoji: w.emoji, spark: w.spark, _sub: sub }, "watch");
   return `<div class="watch-row-wrap" data-symbol="${esc(w.symbol)}">
     <div class="watch-row-delete-bg">🗑 移除</div>
     <div class="watch-row-content">${row}</div>
@@ -1012,7 +1023,7 @@ function rerenderStatsBody() {
   const body = document.getElementById("statsRest");
   const s = statsCache[statsPeriod];
   if (!s || !body) return;
-  const periodLabel = { all: "全部", ytd: "今年", "90d": "近 90 天", custom: "自訂" }[statsPeriod];
+  const periodLabel = { all: "全部", month: "當月", ytd: "今年", "90d": "近 90 天", custom: "自訂" }[statsPeriod];
   const rpct = s.range_pl_pct !== null ? `（${s.range_pl_pct >= 0 ? "+" : ""}${s.range_pl_pct.toFixed(2)}%）` : "";
   const summary = `<div class="statsummary">
     <div class="row"><div>
@@ -1064,11 +1075,13 @@ async function renderStats() {
   const s0 = await loadStats("all");
   const body = document.getElementById("statsBody");
   if (s0.empty) {
-    body.innerHTML = `<p>尚無歷史交易資料。到「📦 我的持股」新增一筆賣出或配息紀錄。</p>` + renderFooter();
+    body.innerHTML = emptyState("📊", "尚無歷史交易資料",
+      "到「📦 我的持股」新增一筆賣出或配息紀錄。") + renderFooter();
     return;
   }
   body.innerHTML = sec("📅 選擇區間") + segGroup("period", [
-    { key: "all", label: "全部" }, { key: "ytd", label: "今年" }, { key: "90d", label: "近 90 天" },
+    { key: "month", label: "當月" }, { key: "90d", label: "近 90 天" },
+    { key: "ytd", label: "今年" }, { key: "all", label: "全部" },
   ], statsPeriod) + `<div id="statsRest"></div>`;
   rerenderStatsBody();
 }
@@ -1078,6 +1091,15 @@ async function renderStats() {
 // ------------------------------------------------------------------
 // 拿掉了原本的「🔄 更新」按鈕：資料已經有背景排程每 10 分鐘自動保持新鮮，
 // 這顆按鈕唯一的效果只是把剛預熱好的快取整個清空，點下去反而讓 App 變慢。
+// 空白頁（還沒有資料時）統一用大 icon + 標題 + 提示文字，取代原本乾乾一行純文字。
+function emptyState(icon, title, hint) {
+  return `<div class="empty-state">
+    <div class="empty-state-icon">${icon}</div>
+    <div class="empty-state-title">${title}</div>
+    ${hint ? `<div class="empty-state-hint">${hint}</div>` : ""}
+  </div>`;
+}
+
 function renderFooter() {
   return `<hr style="margin:22px 0 14px">
     <p class="hint" style="text-align:center;margin-top:10px">
@@ -1217,23 +1239,34 @@ async function renderCalendar() {
   const c = await api("/calendar");
   const body = document.getElementById("calBody");
   if (c.empty) {
-    body.innerHTML = `<p>目前持股與追蹤清單裡，沒有查得到的財報／除息／配息日期。</p>` + renderFooter();
+    body.innerHTML = emptyState("📅", "查不到財報／除息／配息日期",
+      "持股與追蹤清單目前都沒有可以顯示的日期資料。") + renderFooter();
     return;
   }
-  const rows = c.events.map(e => {
-    const isPast = e.date < c.today;
+  const eventRow = (e, upcoming) => {
     const tagColor = e.kind === "held" ? GREEN : GREY;
-    return `<div class="posblock" style="border-left:5px solid ${isPast ? "var(--line)" : tagColor};
-      opacity:${isPast ? 0.55 : 1}">
+    return `<div class="posblock" style="border-left:5px solid ${upcoming ? tagColor : "var(--line)"};
+      ${upcoming ? "" : "opacity:.6"}">
       <div style="display:flex;justify-content:space-between;gap:8px">
         <span><b>${esc(e.symbol)}</b> <span style="color:#6b7280">${esc(e.label)}</span></span>
-        <span style="color:#6b7280">${esc(e.date)}</span>
+        <span style="color:${upcoming ? "var(--ink)" : "#6b7280"};font-weight:${upcoming ? 800 : 400}">${esc(e.date)}</span>
       </div>
       <div style="color:#6b7280;font-size:.85rem">${esc(e.name)}　·　${e.kind === "held" ? "持股中" : "追蹤清單"}</div>
     </div>`;
-  }).join("");
-  body.innerHTML = `<p class="hint">今天：${esc(c.today)}　·　🟢 持股中　⚪ 追蹤清單　（淡色＝已過去）</p>` +
-    rows + renderFooter();
+  };
+  // 使用者比較在乎「快來了」的事件，已經過去的只是留個一個月內的參考，
+  // 分成兩段、即將到來的排前面用全彩強調，過去的淡化縮到後面。
+  const upcoming = c.events.filter(e => e.date >= c.today);
+  const past = c.events.filter(e => e.date < c.today).reverse();
+  let html = `<p class="hint">今天：${esc(c.today)}　·　🟢 持股中　⚪ 追蹤清單</p>`;
+  html += sec(`🔜 即將到來（${upcoming.length}）`);
+  html += upcoming.length ? upcoming.map(e => eventRow(e, true)).join("")
+    : `<p class="hint">近期沒有排定的財報／除息／配息日期。</p>`;
+  if (past.length) {
+    html += sec(`🕓 一個月內已發生（${past.length}）`);
+    html += past.map(e => eventRow(e, false)).join("");
+  }
+  body.innerHTML = html + renderFooter();
 }
 
 // ------------------------------------------------------------------

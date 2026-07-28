@@ -321,9 +321,15 @@ def get_market_news(limit: int = 5) -> list:
 def portfolio_value_series(holdings_tuple, period: str, interval: str) -> pd.Series:
     """把每檔『股數 × 歷史收盤』相加 → 投資組合歷史總市值(USD) 時間序列。
        holdings_tuple = ((symbol, shares), ...)（tuple 方便快取）。"""
+    # 原本是一檔一檔依序打 get_chart，10 幾檔持股、又是 1 年/5 年這種比較重的區間，
+    # 加起來動輒等好幾十秒。跟其他地方一樣改成平行抓，不要一檔卡住全部人等。
+    shares_by_sym = dict(holdings_tuple)
+    syms = [sym for sym, sh in holdings_tuple if sh]
+    with ThreadPoolExecutor(max_workers=min(6, len(syms) or 1)) as ex:
+        charts = list(ex.map(lambda s: get_chart(s, period, interval), syms))
     frames = []
-    for sym, sh in holdings_tuple:
-        h = get_chart(sym, period, interval)
+    for sym, h in zip(syms, charts):
+        sh = shares_by_sym[sym]
         if h.empty or not sh:
             continue
         frames.append((h["Close"] * float(sh)).rename(sym))

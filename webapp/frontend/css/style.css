@@ -7,7 +7,7 @@
   --card-hl:inset 0 1px 0 rgba(255,255,255,.8);
   --accent:#f2941f; --accent-dk:#c96e0a; --accent-lt:#fbdca3; --accent-text:var(--accent-dk);
   --green:#18a558; --red:#e0405a;
-  --logo-bg:#eceef1; --logo-border:#dde1e6;
+  --logo-bg:#dde2e9; --logo-border:#c7ced8;
   --bottomnav-bg:rgba(255,255,255,.86); --bottomnav-sh:0 -8px 26px rgba(15,23,42,.10);
   --r-sm:12px; --r-md:16px; --r-lg:22px; --r-xl:26px;
   --sh-sm:0 1px 3px rgba(17,24,39,.07);
@@ -87,6 +87,20 @@ button{font-family:inherit;cursor:pointer}
   background:linear-gradient(135deg, #4a2e08 20%, #7a4d14 100%);
   -webkit-background-clip:text;background-clip:text;color:transparent}
 .hero-card .ws{position:relative;font-size:.85rem;color:#8a6633;font-weight:600}
+
+/* 個股詳細頁最上面的價格區塊：跟其他卡片一樣抬升起來，不要用首頁那個橘色（那個顏色
+   專門代表「資產總額」），維持中性色但要有明顯的立體感。 */
+.detail-hero{background:var(--card-grad);border:1px solid var(--line);border-radius:var(--r-xl);
+  padding:18px 20px 20px;margin:4px 0 14px;box-shadow:var(--sh-lg), var(--card-hl)}
+.detail-hero-price{font-size:2.15rem;font-weight:800;letter-spacing:.2px;
+  background:linear-gradient(135deg, var(--ink) 30%, #55565e 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent}
+
+/* 空白頁：大 icon + 標題 + 提示，取代原本乾乾一行純文字。 */
+.empty-state{text-align:center;padding:56px 24px 40px}
+.empty-state-icon{font-size:3rem;margin-bottom:14px;opacity:.8}
+.empty-state-title{font-weight:800;font-size:1.05rem;color:var(--ink);margin-bottom:6px}
+.empty-state-hint{font-size:.88rem;color:var(--sub);max-width:280px;margin:0 auto;line-height:1.5}
 
 /* 兩張等大小卡：今日損益、未實現損益 */
 .wrow{display:flex;gap:9px;margin:0 0 8px}
@@ -173,9 +187,9 @@ button{font-family:inherit;cursor:pointer}
 .hitem-right .chip{font-size:.72rem}
 
 /* 交易卡片 */
-.tcard{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--line);
+.tcard{background:var(--card-grad);border:1px solid var(--line);border-left:4px solid var(--line);
   border-radius:var(--r-md);padding:12px 16px;margin:9px 0;
-  display:flex;justify-content:space-between;align-items:center;box-shadow:var(--sh-sm);
+  display:flex;justify-content:space-between;align-items:center;box-shadow:var(--sh-sm), var(--card-hl);
   transition:box-shadow .2s,transform .2s var(--bounce)}
 .tcard:hover{box-shadow:var(--sh-md);transform:translateY(-2px) scale(1.008)}
 .tcard.buy{border-left-color:var(--red)}
@@ -198,8 +212,8 @@ button{font-family:inherit;cursor:pointer}
 .nrow-m{color:var(--sub);font-size:.72rem;margin-top:4px}
 
 /* 每日簡報卡片 */
-.bcard{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--line);
-  border-radius:var(--r-md);padding:11px 15px;margin:8px 0;box-shadow:var(--sh-sm)}
+.bcard{background:var(--card-grad);border:1px solid var(--line);border-left:4px solid var(--line);
+  border-radius:var(--r-md);padding:11px 15px;margin:8px 0;box-shadow:var(--sh-sm), var(--card-hl)}
 .bcard .t{font-weight:800;font-size:.98rem;color:var(--ink)}
 .bcard .s{color:#586071;font-size:.86rem;margin-top:4px;line-height:1.4}
 
@@ -266,13 +280,15 @@ button{font-family:inherit;cursor:pointer}
 
 /* 按鈕式單選（取代 Streamlit 的 segmented_control） */
 .seg-group{display:flex;gap:6px;margin:6px 0 14px;flex-wrap:wrap}
-.seg-btn{background:var(--card);border:1px solid var(--line);border-radius:999px;
+.seg-btn{background:var(--card-grad);border:1px solid var(--line);border-radius:999px;
   padding:7px 15px;font-size:.82rem;font-weight:700;color:var(--sub);
+  box-shadow:var(--sh-sm), var(--card-hl);
   transition:transform .2s var(--bounce),box-shadow .2s,color .15s,border-color .15s}
-.seg-btn:hover{transform:translateY(-1px);box-shadow:var(--sh-sm)}
+.seg-btn:hover{transform:translateY(-1px);box-shadow:var(--sh-md), var(--card-hl)}
 .seg-btn:active{transform:scale(.94)}
-.seg-btn.active{color:var(--accent-text);border-color:var(--accent);
-  background:linear-gradient(180deg,rgba(242,148,31,.16),rgba(242,148,31,.05))}
+.seg-btn.active{color:#fff;border-color:var(--accent-dk);
+  background:linear-gradient(135deg,var(--accent) 0%,var(--accent-dk) 100%);
+  box-shadow:0 3px 10px rgba(201,110,10,.35), var(--card-hl)}
 
 /* 持股列表：一列可點進去看詳細 */
 .hitem-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
