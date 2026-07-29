@@ -67,6 +67,11 @@ function drawDonutChart(canvas, segments) {
     ctx.closePath();
     ctx.fillStyle = seg.color;
     ctx.fill();
+    // 每一塊之間留一條細細的描邊（跟卡片底色同色，不是頁面底色——甜甜圈是畫在
+    // 白色卡片裡面，用卡片底色才會無縫接上，不會在色塊間看到一圈奇怪的灰邊)。
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--card").trim() || "#fff";
+    ctx.stroke();
     start += angle;
   });
 }

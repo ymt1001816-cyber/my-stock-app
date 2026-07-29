@@ -15,6 +15,16 @@
   --sh-lg:0 16px 36px -10px rgba(15,23,42,.20), 0 2px 8px rgba(15,23,42,.08);
   --bounce:cubic-bezier(.34,1.56,.64,1);
 }
+/* 按鈕/可點擊列按下去的彈跳動態感：手機上 CSS :active 觸發時機常常不穩定、感覺不到，
+   改用 JS 在按下當下強制觸發這個 keyframe（見 app.js 的 pointerdown 監聽），
+   縮一下再彈超過 100% 一點點再回穩，才會有「彈出來」的感覺。 */
+@keyframes btn-pop{
+  0%{transform:scale(1)}
+  35%{transform:scale(.93)}
+  65%{transform:scale(1.045)}
+  100%{transform:scale(1)}
+}
+.pop-anim{animation:btn-pop .38s var(--bounce)}
 *{box-sizing:border-box}
 html{background:#eef0f3;overscroll-behavior-y:none}
 body{margin:0;background:
@@ -76,6 +86,7 @@ button{font-family:inherit;cursor:pointer}
    但不要用太深/太黑的顏色（跟頁面其他地方反差太大，會顯得突兀）。 */
 .hero-card{position:relative;overflow:hidden;padding:20px 20px 22px;margin:4px 0 14px;
   border-radius:var(--r-xl);background:linear-gradient(135deg,#fff3e2 0%,#ffdfab 100%);
+  border:1px solid rgba(201,110,10,.22);
   box-shadow:var(--sh-lg);transition:transform .2s var(--bounce)}
 .hero-link:active .hero-card{transform:scale(.98)}
 .hero-card::after{content:'';position:absolute;top:-45%;right:-15%;width:220px;height:220px;
@@ -142,11 +153,16 @@ button{font-family:inherit;cursor:pointer}
   .alloc-donut-row{flex-direction:row;align-items:center;gap:16px}
   .alloc-donut-wrap{width:104px;height:104px;margin:0}
 }
-.legend{display:flex;align-items:center;justify-content:space-between;
+/* 名稱吃剩下的寬度、金額/百分比各自固定寬度靠右對齊，這樣不管代號長短、
+   金額位數多少，金額跟百分比才會每一列都對得整整齊齊，不會東一個西一個。 */
+.legend{display:flex;align-items:center;gap:8px;
   padding:8px 4px;border-radius:10px;font-size:.94rem;transition:background .12s}
 .legend:hover{background:var(--card2)}
 .legend .dot{width:10px;height:10px;border-radius:99px;display:inline-block;margin-right:9px;
   box-shadow:0 0 0 3px rgba(0,0,0,.03)}
+.legend-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.legend-amt{flex:0 0 auto;font-weight:700;text-align:right;min-width:88px;font-variant-numeric:tabular-nums}
+.legend-pct{flex:0 0 auto;color:var(--sub);text-align:right;min-width:48px;font-variant-numeric:tabular-nums}
 
 /* 提醒區塊 */
 .posblock{border-radius:var(--r-md);padding:14px 18px;margin:6px 0;box-shadow:var(--sh-md)}
@@ -166,8 +182,12 @@ button{font-family:inherit;cursor:pointer}
 .watch-row-wrap.reordering .hitem{box-shadow:var(--sh-lg);transform:scale(1.03);
   border-color:rgba(242,148,31,.4)}
 
-/* 券商風格持倉列 */
+/* 券商風格持倉列：只有「剛進到這頁」那次要一列一列淡入＋上移，換排序方式／下拉刷新／
+   新增一筆之後重畫清單都不要重播（見 app.js stockRowHtml 的 animate 參數），
+   不然每點一次排序鈕全部列都重新閃一次，會感覺卡卡的、不俐落。 */
+@keyframes row-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 .hlink{text-decoration:none;color:inherit;display:block}
+.hlink.row-enter{animation:row-in .4s var(--bounce) backwards}
 .hitem{display:flex;align-items:center;justify-content:space-between;gap:12px;
   background:var(--card-grad);padding:16px 17px;margin-bottom:10px;border-radius:var(--r-md);
   border:1px solid var(--line);box-shadow:var(--sh-sm), var(--card-hl);
@@ -204,8 +224,8 @@ button{font-family:inherit;cursor:pointer}
 
 /* 新聞列表 */
 .nrow{display:block;text-decoration:none;color:inherit;
-  background:var(--card);border:1px solid var(--line);border-radius:var(--r-sm);
-  padding:9px 13px;margin-bottom:7px;box-shadow:var(--sh-sm);
+  background:var(--card-grad);border:1px solid var(--line);border-radius:var(--r-sm);
+  padding:9px 13px;margin-bottom:7px;box-shadow:var(--sh-sm), var(--card-hl);
   transition:box-shadow .2s,transform .2s var(--bounce),border-color .2s}
 .nrow:hover{box-shadow:var(--sh-md);transform:translateY(-2px) scale(1.008);border-color:rgba(242,148,31,.38)}
 .nrow-t{font-weight:700;font-size:.92rem;line-height:1.35;color:var(--ink)}
@@ -275,8 +295,8 @@ button{font-family:inherit;cursor:pointer}
   box-shadow:var(--sh-md);white-space:nowrap;z-index:5}
 
 /* 判斷徽章 */
-.badge{display:inline-block;border-radius:999px;padding:5px 15px;font-weight:800;
-  font-size:.92rem;box-shadow:inset 0 0 0 1px rgba(0,0,0,.03)}
+.badge{display:inline-block;border-radius:999px;padding:6px 16px;font-weight:800;
+  font-size:.92rem;box-shadow:inset 0 0 0 1px rgba(0,0,0,.05), 0 2px 6px rgba(15,23,42,.08)}
 
 /* 按鈕式單選（取代 Streamlit 的 segmented_control） */
 .seg-group{display:flex;gap:6px;margin:6px 0 14px;flex-wrap:wrap}
@@ -324,8 +344,8 @@ button{font-family:inherit;cursor:pointer}
   opacity:0;pointer-events:none;transition:opacity .28s}
 .sheet-backdrop.open{opacity:1;pointer-events:auto}
 .sheet-panel{position:fixed;left:0;right:0;bottom:0;z-index:201;max-width:1080px;margin:0 auto;
-  background:var(--card);border-radius:var(--r-xl) var(--r-xl) 0 0;
-  box-shadow:var(--sh-lg);padding:10px 18px calc(20px + env(safe-area-inset-bottom));
+  background:var(--card-grad);border-radius:var(--r-xl) var(--r-xl) 0 0;
+  box-shadow:var(--sh-lg), var(--card-hl);padding:10px 18px calc(20px + env(safe-area-inset-bottom));
   max-height:82vh;overflow-y:auto;-webkit-overflow-scrolling:touch;
   transform:translateY(105%);transition:transform .32s var(--bounce);pointer-events:none}
 .sheet-panel.open{transform:translateY(0);pointer-events:auto}

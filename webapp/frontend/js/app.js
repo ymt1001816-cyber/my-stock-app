@@ -176,7 +176,8 @@ function bindHeaderEvents() {
 // ------------------------------------------------------------------
 async function renderHome() {
   const app = document.getElementById("app");
-  app.innerHTML = renderHeader("🏠 投資總覽") + `<div id="homeBody">${skeletonHome()}</div>` + renderBottomNav("home");
+  const aboutBtn = `<a href="?nav=home&about=1" class="btn-back" style="text-decoration:none;margin-bottom:0">ℹ️</a>`;
+  app.innerHTML = renderHeader("🏠 投資總覽", aboutBtn) + `<div id="homeBody">${skeletonHome()}</div>` + renderBottomNav("home");
   bindHeaderEvents();
 
   const s = await api("/summary");
@@ -212,8 +213,10 @@ async function renderHome() {
 
   let allocHtml = "";
   if (s.total_mv_usd) {
-    const legend = s.allocation.map(a => `<div class="legend"><span><span class="dot" style="background:${a.color}"></span>${esc(a.name)}</span>
-      <span><b>${mh(a.value_usd)}</b>　<span style="color:#6b7280">${a.pct.toFixed(1)}%</span></span></div>`).join("");
+    const legend = s.allocation.map(a => `<div class="legend">
+      <span class="legend-name"><span class="dot" style="background:${a.color}"></span>${esc(a.name)}</span>
+      <span class="legend-amt">${mh(a.value_usd)}</span>
+      <span class="legend-pct">${a.pct.toFixed(1)}%</span></div>`).join("");
     allocHtml = sec("📊 資產配置") + `<div class="alloccard">
       <div class="alloc-donut-row">
         <div class="alloc-donut-wrap"><canvas id="allocDonut"></canvas></div>
@@ -275,6 +278,24 @@ document.addEventListener("click", e => {
   if (btn && segHandlers[btn.dataset.segBtn]) segHandlers[btn.dataset.segBtn](btn.dataset.value);
 });
 
+// 按鈕/可點擊列按下去要有彈出的動態感：不要只靠 CSS :active（手機上很多瀏覽器
+// :active 觸不觸發、觸發得夠不夠久很不穩定，常常整個感覺不到），改成用 pointerdown
+// 直接強制觸發一個 keyframe 動畫，不管滑鼠點擊還是手機觸控都會是同一個效果。
+// watch-row-content 故意不放進來：那個元素同時被滑動刪除/拖曳排序的手勢邏輯直接控制
+// transform，動畫效果會跟手勢衝突、閃一下很奇怪。
+const POP_SELECTOR = "button, .seg-btn, .navlink, .btn-pill, .btn-back, .btn-circle-glass, " +
+  ".cashstrip, .hlink, .btn-submit";
+document.addEventListener("pointerdown", e => {
+  const el = e.target.closest(POP_SELECTOR);
+  if (!el) return;
+  el.classList.remove("pop-anim");
+  void el.offsetWidth; // 強制 reflow，同一個元素連續快速點擊也能重新觸發動畫
+  el.classList.add("pop-anim");
+}, { passive: true });
+document.addEventListener("animationend", e => {
+  if (e.animationName === "btn-pop") e.target.classList.remove("pop-anim");
+});
+
 // 共用小工具：從底部滑出的表單（新增交易／加入追蹤都用這個），統一開關邏輯，
 // 確保狀態變數（addOpen/watchOpen）跟畫面上的開關永遠一致。
 function toggleSheet(panelId, backdropId, open) {
@@ -300,7 +321,7 @@ async function loadSymbols() {
   return symbolsCache;
 }
 
-function stockRowHtml(r, navKey = "hold") {
+function stockRowHtml(r, navKey = "hold", idx = 0, animate = false) {
   const sub = r._sub !== undefined ? r._sub :
     `${r.shares % 1 === 0 ? r.shares : r.shares.toFixed(5)} 股 · 佔比 ${r.weight_pct.toFixed(1)}%`;
   // 持股列表看的是「賺賠多少」，不是當天股價；追蹤清單沒有成本，才顯示現價/當日漲跌。
@@ -316,7 +337,12 @@ function stockRowHtml(r, navKey = "hold") {
   const spark = hasSpark
     ? `<div class="hitem-spark"><canvas data-spark='${esc(JSON.stringify(r.spark))}' data-spark-color="${sparkColor}"></canvas></div>`
     : "";
-  return `<a class="hlink" href="?nav=${navKey}&sym=${encodeURIComponent(r.symbol)}">
+  // 一列一列淡入的動畫延遲，最多疊到 300ms 就好，清單很長也不會等太久才全部進場；
+  // 只有真的剛進到這頁（animate=true）才加這個效果，重新排序/刷新不要重播。
+  const delay = Math.min(idx * 28, 300);
+  const enterCls = animate ? " row-enter" : "";
+  const enterStyle = animate ? ` style="animation-delay:${delay}ms"` : "";
+  return `<a class="hlink${enterCls}"${enterStyle} href="?nav=${navKey}&sym=${encodeURIComponent(r.symbol)}">
     <div class="hitem">
       <div class="hitem-left">
         <div class="hitem-logo">${logoImg(r.symbol)}</div>
@@ -490,7 +516,7 @@ async function loadHoldData(force = false) {
   }
 }
 
-function rerenderHoldBody() {
+function rerenderHoldBody(animate = false) {
   const body = document.getElementById("holdBody");
   if (!body) return;
   if (holdData.empty) {
@@ -508,7 +534,7 @@ function rerenderHoldBody() {
   ], holdSort) +
   `<div style="display:flex;justify-content:space-between;color:#6b7280;font-size:.76rem;padding:0 4px 6px">
     <span>持倉 · ${rows.length} 檔</span><span>損益金額　·　報酬率</span></div>` +
-  rows.map(r => stockRowHtml(r)).join("") +
+  rows.map((r, i) => stockRowHtml(r, "hold", i, animate)).join("") +
   `<p class="hint">👆 點任一列看個股詳細（走勢圖、盤前盤後、財報、建議）</p>` + renderFooter();
   const panel = document.getElementById("addTxPanel");
   if (panel) panel.innerHTML = renderAddForm();
@@ -534,7 +560,7 @@ async function renderHoldList() {
   });
 
   await loadHoldData();
-  rerenderHoldBody();
+  rerenderHoldBody(true);
 }
 
 // ------------------------------------------------------------------
@@ -577,10 +603,11 @@ async function renderDetail(symbol, fromNav = "hold") {
       </div>
     </div>
     <div style="color:var(--sub);font-size:.84rem;margin-bottom:10px">🏢 ${esc(d.biz)}　·　${esc(d.sector)}</div>
-    <div><span class="detail-hero-price">${usdOnly(d.price_usd)}</span>
+    <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
+      <span class="detail-hero-price">${usdOnly(d.price_usd)}</span>
       <span style="color:${dc};font-size:1.2rem;font-weight:700">${pctStr(d.change_pct)}</span>
-      　<span style="color:var(--sub)">${dispState}</span>
-      <span style="color:var(--sub);font-size:.9rem">${extra}</span></div>
+    </div>
+    ${dispState || extra ? `<div style="color:var(--sub);font-size:.86rem;margin-top:4px">${dispState}${extra}</div>` : ""}
   </div>`;
 
   if (d.position) {
@@ -777,7 +804,7 @@ async function loadWatchData() {
   if (!watchData) watchData = await api("/watchlist");
 }
 
-function rerenderWatchBody() {
+function rerenderWatchBody(animate = false) {
   const body = document.getElementById("watchBody");
   if (!body) return;
   if (watchData.empty) {
@@ -788,15 +815,15 @@ function rerenderWatchBody() {
   body.innerHTML =
     `<div style="display:flex;justify-content:space-between;color:#6b7280;font-size:.76rem;padding:0 4px 6px">
       <span>觀察 · ${watchData.rows.length} 檔</span><span>現價　·　單日漲跌</span></div>` +
-    watchData.rows.map(watchRowHtml).join("") +
+    watchData.rows.map((w, i) => watchRowHtml(w, i, animate)).join("") +
     `<p class="hint">👆 點看詳細　·　👈 左滑到底移除　·　長按拖曳排序</p>` + renderFooter();
   paintSparklines(body);
 }
 
-function watchRowHtml(w) {
+function watchRowHtml(w, idx = 0, animate = false) {
   const sub = w.label + (w.target_buy_usd !== null ? ` · 目標 ${usdOnly(w.target_buy_usd)}` : "");
   const row = stockRowHtml({ symbol: w.symbol, shares: null, weight_pct: null, price_usd: w.price_usd,
-    day_pct: w.day_pct, emoji: w.emoji, spark: w.spark, _sub: sub }, "watch");
+    day_pct: w.day_pct, emoji: w.emoji, spark: w.spark, _sub: sub }, "watch", idx, animate);
   return `<div class="watch-row-wrap" data-symbol="${esc(w.symbol)}">
     <div class="watch-row-delete-bg">🗑 移除</div>
     <div class="watch-row-content">${row}</div>
@@ -965,7 +992,7 @@ async function renderWatchList() {
   });
 
   await loadWatchData();
-  rerenderWatchBody();
+  rerenderWatchBody(true);
 }
 
 // ------------------------------------------------------------------
@@ -1227,6 +1254,38 @@ onSeg("save-cash", async () => {
 });
 
 // ------------------------------------------------------------------
+// ℹ️ 功能介紹（整理全部功能給自己/朋友試用時快速瀏覽，不是給一般使用者的正式導覽）
+// ------------------------------------------------------------------
+const ABOUT_SECTIONS = [
+  { ic: "🏠", title: "投資總覽", desc: "淨資產（持股＋現金）、今日／未實現損益、資產配置圓餅圖、需要注意的警示——停損、走勢偏弱、單日大漲跌、單一持股佔比過高。" },
+  { ic: "📦", title: "我的持股", desc: "買進／賣出／配息紀錄，自動算加權平均成本、已實現損益；每列旁邊有近一個月走勢 sparkline，不用點進去就看得出趨勢。" },
+  { ic: "🔎", title: "個股詳細頁", desc: "即時報價、盤前盤後、走勢圖（當天～1年）、相關新聞；RSI／MACD／成交量技術訊號、分析師目標價與評等、機械式「續抱還是賣出」判斷；左右滑動可以切到清單裡的上一檔／下一檔。" },
+  { ic: "👀", title: "追蹤清單", desc: "設定目標買價，機械式判斷「值不值得買」；拖曳排序、左滑移除。" },
+  { ic: "📊", title: "統計報表", desc: "依區間（當月／近90天／今年／全部／自訂）看已實現損益、逐筆交易明細、個股損益排行。" },
+  { ic: "📰", title: "每日簡報", desc: "一鍵產生：大盤指數＋新聞、持股大幅漲跌原因、追蹤清單重點、組合摘要（含今日損益）。" },
+  { ic: "📅", title: "股利／財報行事曆", desc: "彙總持股＋追蹤清單所有股票的財報／除息／配息日期，即將到來的優先顯示，一個月內的過去事件淡化顯示。" },
+  { ic: "📈", title: "資產走勢", desc: "日／月／年三種粒度的歷史資產走勢圖，用目前股數回推歷史市值（僅供參考）。" },
+  { ic: "💵", title: "現金管理與幣別切換", desc: "記錄可動用現金，畫面隨時可以在 USD／TWD 間切換顯示。" },
+];
+
+async function renderAbout() {
+  const app = document.getElementById("app");
+  const cards = ABOUT_SECTIONS.map(s => `<div class="tcard" style="display:block">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+      <span style="font-size:1.3rem">${s.ic}</span><b style="font-size:1rem">${esc(s.title)}</b>
+    </div>
+    <div class="sub" style="line-height:1.5">${esc(s.desc)}</div>
+  </div>`).join("");
+  app.innerHTML = `<button class="btn-back" id="backBtn">←</button>
+    <h1>ℹ️ 功能介紹</h1>
+    <p class="hint" style="margin:8px 2px 16px">這個 App 目前有這些功能，逛一輪就知道能幫你做什麼。</p>
+    ${cards}
+    <p class="hint" style="text-align:center;margin-top:16px">※ 所有判斷都是機械式規則計算，不構成投資建議。</p>` +
+    renderBottomNav("home");
+  document.getElementById("backBtn").addEventListener("click", () => navigateTo("?nav=home"));
+}
+
+// ------------------------------------------------------------------
 // 📅 股利／財報行事曆（持股＋追蹤清單彙總，依日期排序）
 // ------------------------------------------------------------------
 async function renderCalendar() {
@@ -1305,6 +1364,7 @@ async function render() {
   if (qs("trend", null)) return renderTrend();
   if (qs("cash", null)) return renderCash();
   if (qs("cal", null)) return renderCalendar();
+  if (qs("about", null)) return renderAbout();
   const sym = qs("sym", null);
   if (sym) return renderDetail(sym, nav);
   if (nav === "home") return renderHome();
@@ -1321,7 +1381,7 @@ async function render() {
 function subPageBackTarget() {
   const sym = qs("sym", null);
   if (sym) return `?nav=${qs("nav", "hold")}`;
-  if (qs("trend", null) || qs("cash", null) || qs("cal", null)) return "?nav=home";
+  if (qs("trend", null) || qs("cash", null) || qs("cal", null) || qs("about", null)) return "?nav=home";
   return null;
 }
 
