@@ -10,10 +10,12 @@
 import os
 import base64
 import logging
+from concurrent.futures import ThreadPoolExecutor
 
 import requests
 
 logger = logging.getLogger("github_sync")
+_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="github_sync")
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 GITHUB_REPO = os.environ.get("GITHUB_REPO", "ymt1001816-cyber/my-stock-app")
@@ -38,9 +40,17 @@ def _get_sha(repo_path):
 
 
 def push_file(local_path, repo_path, message):
-    """把本機檔案內容 commit 回 GitHub。失敗只記警告，不讓使用者的操作因此失敗。"""
+    """把本機檔案內容 commit 回 GitHub。失敗只記警告，不讓使用者的操作因此失敗。
+
+    實際的網路呼叫丟到背景執行緒做，呼叫端（API 回應）不必等 GitHub 兩趟
+    request 才能回傳，避免每次按存檔/切換幣別都卡住等 GitHub。
+    """
     if not ENABLED:
         return
+    _executor.submit(_push_file_sync, local_path, repo_path, message)
+
+
+def _push_file_sync(local_path, repo_path, message):
     try:
         with open(local_path, "rb") as f:
             content = f.read()

@@ -7,6 +7,7 @@ import os
 import sys
 import json
 import warnings
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 
 warnings.filterwarnings("ignore")
@@ -44,10 +45,12 @@ def main():
         return
 
     usdtwd = mk.get_usdtwd()
+    recs = hold.to_dict("records")
+    with ThreadPoolExecutor(max_workers=min(3, len(recs))) as ex:
+        quotes = list(ex.map(lambda r: mk.get_light(str(r["symbol"]).upper().strip()), recs))
     rows = []
-    for _, r in hold.iterrows():
+    for r, q in zip(recs, quotes):
         sym = str(r["symbol"]).upper().strip()
-        q = mk.get_light(sym)
         shares = float(r.get("shares") or 0)
         avg = float(r.get("avg_cost") or 0)
         price = q["price"] or 0

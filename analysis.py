@@ -174,11 +174,39 @@ def _bcard(title, sub="", cc="var(--line)"):
 def generate_briefing(rows, usdtwd=0, watch_syms=None) -> str:
     """免 API 的每日簡報，回答：1) 大盤+新聞 2) 持股漲跌+原因+買賣 3) 值得關注。
        回傳一張張卡片組成的 HTML；金額用 &#36; 跳脫。原因以真實新聞標題呈現。"""
+    watch_syms = (watch_syms or [])[:6]
+    movers = sorted([r for r in rows if abs(r.get("day_pct") or 0) >= 3],
+                    key=lambda r: -abs(r["day_pct"]))
+
+    def fetch_mover_news():
+        if not movers:
+            return []
+        with ThreadPoolExecutor(max_workers=min(6, len(movers))) as ex:
+            return list(ex.map(lambda r: mk.get_news(r["symbol"], 4), movers))
+
+    def fetch_watch():
+        if not watch_syms:
+            return [], []
+        with ThreadPoolExecutor(max_workers=min(6, len(watch_syms))) as ex:
+            quotes = list(ex.map(mk.get_light, watch_syms))
+            news = list(ex.map(lambda s: mk.get_news(s, 4), watch_syms))
+        return quotes, news
+
+    # 四個區塊各自要抓的資料彼此不依賴，一起平行抓，不要排隊等
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        f_idx = ex.submit(mk.get_indices)
+        f_mnews = ex.submit(mk.get_market_news, 4)
+        f_mover_news = ex.submit(fetch_mover_news)
+        f_watch = ex.submit(fetch_watch)
+        idx = f_idx.result()
+        mnews = f_mnews.result()
+        mover_news = f_mover_news.result()
+        watch_quotes, watch_news = f_watch.result()
+
     out = []
 
     # 1) 今天美股大盤
     out.append(_sec("📈 今天美股大盤"))
-    idx = mk.get_indices()
     idx_cards = []
     for i in idx:
         up = i["pct"] >= 0
@@ -195,7 +223,6 @@ def generate_briefing(rows, usdtwd=0, watch_syms=None) -> str:
                 else "偏空、避險情緒升溫" if spx["pct"] < -0.3 else "小幅震盪、方向不明")
         out.append(f"<div style='color:#8a8983;font-size:.86rem;margin:0 0 8px 2px'>"
                    f"📌 整體{mood}。</div>")
-    mnews = mk.get_market_news(4)
     if mnews:
         news_cards = []
         for n in mnews:
@@ -207,15 +234,9 @@ def generate_briefing(rows, usdtwd=0, watch_syms=None) -> str:
 
     # 2) 我的持股：今日大幅漲跌
     out.append(_sec("🔔 我的持股：今日大幅漲跌"))
-    movers = sorted([r for r in rows if abs(r.get("day_pct") or 0) >= 3],
-                    key=lambda r: -abs(r["day_pct"]))
     if not movers:
         out.append(_bcard("今天沒有漲跌超過 3% 的持股，整體平穩 👍", cc=_GREEN))
     else:
-        # limit=4 才會跟 /api/_warm_cache 用同一組快取鍵，不然每次都要重新現抓，很慢；
-        # 平行抓也是因為同樣的原因——就算真的沒中快取，也不用一支一支排隊等。
-        with ThreadPoolExecutor(max_workers=min(6, len(movers))) as ex:
-            mover_news = list(ex.map(lambda r: mk.get_news(r["symbol"], 4), movers))
         for r, news in zip(movers, mover_news):
             up = r["day_pct"] > 0
             cc = _GREEN if up else _RED
@@ -227,15 +248,11 @@ def generate_briefing(rows, usdtwd=0, watch_syms=None) -> str:
 
     # 3) 值得關注的股票
     out.append(_sec("🎯 值得關注的股票"))
-    watch_syms = (watch_syms or [])[:6]
     if not watch_syms:
         out.append(_bcard("你的追蹤清單是空的",
                           "到「👀 追蹤清單」加入想買的股票，這裡每天就會幫你盯著＋附上新聞。"))
     else:
-        with ThreadPoolExecutor(max_workers=min(6, len(watch_syms))) as ex:
-            quotes = list(ex.map(mk.get_light, watch_syms))
-            watch_news = list(ex.map(lambda s: mk.get_news(s, 4), watch_syms))
-        for s, q, news in zip(watch_syms, quotes, watch_news):
+        for s, q, news in zip(watch_syms, watch_quotes, watch_news):
             trend = ("多頭趨勢" if (q["ma50"] and q["ma200"] and q["price"] > q["ma50"] > q["ma200"])
                      else "偏弱" if (q["ma200"] and q["price"] < q["ma200"]) else "區間整理")
             headline = news[0]["title"] if news else "（暫無相關新聞）"

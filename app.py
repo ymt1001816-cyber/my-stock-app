@@ -1214,8 +1214,10 @@ elif page == "👀 追蹤清單":
             html = ["<div style='display:flex;justify-content:space-between;color:#8a8983;"
                     f"font-size:.76rem;padding:0 4px 6px'><span>觀察 · {len(watch)} 檔</span>"
                     "<span>現價　·　單日漲跌</span></div>"]
-            for _, w in watch.iterrows():
-                q = mk.get_light(w["symbol"])
+            recs = watch.to_dict("records")
+            with ThreadPoolExecutor(max_workers=min(10, len(recs))) as ex:
+                quotes = list(ex.map(lambda r: mk.get_light(r["symbol"]), recs))
+            for w, q in zip(recs, quotes):
                 tb = w.get("target_buy")
                 v = an.analyze_watch(q, tb if pd.notna(tb) else None, None)
                 sub = v["label"] + (f" · 目標 &#36;{tb:,.2f}" if pd.notna(tb) else "")

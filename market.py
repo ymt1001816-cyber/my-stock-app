@@ -290,13 +290,15 @@ def get_light(symbol: str) -> dict:
 @st.cache_data(ttl=300, show_spinner=False)
 def get_indices() -> list:
     """美股大盤指數即時漲跌。"""
-    out = []
     if not HAS_YF:
-        return out
-    for sym, name in [("^GSPC", "S&P 500"), ("^IXIC", "那斯達克"),
-                      ("^DJI", "道瓊"), ("^SOX", "費城半導體")]:
+        return []
+    indices = [("^GSPC", "S&P 500"), ("^IXIC", "那斯達克"),
+               ("^DJI", "道瓊"), ("^SOX", "費城半導體")]
+    with ThreadPoolExecutor(max_workers=len(indices)) as ex:
+        fis = list(ex.map(lambda s: _bounded(lambda s=s: _fast_info_subset(s, ["lastPrice", "previousClose"])), [s for s, _ in indices]))
+    out = []
+    for (sym, name), fi in zip(indices, fis):
         try:
-            fi = _bounded(lambda s=sym: _fast_info_subset(s, ["lastPrice", "previousClose"]))
             if not fi.get("lastPrice"):
                 continue
             p = float(fi.get("lastPrice") or 0)
