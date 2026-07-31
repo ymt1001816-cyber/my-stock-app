@@ -1,7 +1,6 @@
 streamlit
 yfinance
 pandas
-plotly
 openpyxl
 lxml
 requests
