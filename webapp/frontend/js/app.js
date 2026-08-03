@@ -13,6 +13,7 @@ const NAV_ICONS = {
   watch: `<svg ${ICON_SVG_ATTRS}><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg>`,
   stats: `<svg ${ICON_SVG_ATTRS}><path d="M5 20V10"/><path d="M12 20V4"/><path d="M19 20v-7"/></svg>`,
   brief: `<svg ${ICON_SVG_ATTRS}><path d="M7 3.5h7l4 4V19a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 19V5A1.5 1.5 0 0 1 7 3.5Z"/><path d="M14 3.5V8h4"/><path d="M9 13h6M9 16h6"/></svg>`,
+  tw: `<svg ${ICON_SVG_ATTRS}><path d="M6 21V3"/><path d="M6 4.5h12l-3 4 3 4H6"/></svg>`,
 };
 
 const NAV = [
@@ -21,6 +22,7 @@ const NAV = [
   { key: "watch", ic: NAV_ICONS.watch, label: "追蹤" },
   { key: "stats", ic: NAV_ICONS.stats, label: "統計" },
   { key: "brief", ic: NAV_ICONS.brief, label: "簡報" },
+  { key: "tw", ic: NAV_ICONS.tw, label: "台股" },
 ];
 
 const state = { cur: "USD", rate: 0, cash: 0 };
@@ -1329,12 +1331,170 @@ async function renderCalendar() {
 }
 
 // ------------------------------------------------------------------
+// 🇹🇼 台股（獨立於美股持股，報價本身是台幣，不套用匯率換算）
+// ------------------------------------------------------------------
+let twData = null;
+let twOpen = false;
+let twEditSymbol = null;
+
+function twMoney(v, sign = false) {
+  if (v === null || v === undefined) return "—";
+  const s = Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  const neg = v < 0 ? "-" : (sign && v > 0 ? "+" : "");
+  return `${neg}NT$${s}`;
+}
+
+async function renderTwHoldings() {
+  const app = document.getElementById("app");
+  const addBtn = `<button class="btn-circle-glass" id="twAddBtn">+</button>`;
+  app.innerHTML = renderHeader("🇹🇼 台股", addBtn) +
+    `<p class="hint">獨立記錄台股/ETF 持倉，報價本身就是台幣，不會套用美金匯率換算。</p>
+     <div id="twBody">${skeletonList()}</div>` + renderBottomNav("tw") +
+    sheetMarkup("twPanel", "twBackdrop");
+  bindHeaderEvents();
+  document.getElementById("twAddBtn").addEventListener("click", () => {
+    twEditSymbol = null;
+    twOpen = !twOpen;
+    toggleSheet("twPanel", "twBackdrop", twOpen);
+    if (twOpen) rerenderTwPanel();
+  });
+  document.getElementById("twBackdrop").addEventListener("click", () => {
+    twOpen = false;
+    toggleSheet("twPanel", "twBackdrop", false);
+  });
+
+  twData = await api("/tw/holdings");
+  rerenderTwBody();
+}
+
+function rerenderTwBody(animate = false) {
+  const body = document.getElementById("twBody");
+  if (!body) return;
+  if (twData.empty) {
+    body.innerHTML = emptyState("🇹🇼", "還沒有台股持股", "點右上角「➕」新增第一檔。") + renderFooter();
+    return;
+  }
+  const rows = twData.rows;
+  const plColor = colorOf(twData.total_pl);
+  const inclColor = colorOf(twData.total_pl_incl_div);
+  const summary = `<div class="wcard sm" style="margin-bottom:10px">
+    <div style="display:flex;justify-content:space-between;font-size:.86rem;color:var(--sub)">
+      <span>總市值</span><span>${twMoney(twData.total_market_value)}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:.86rem;color:var(--sub);margin-top:4px">
+      <span>總成本</span><span>${twMoney(twData.total_cost)}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-top:8px">
+      <span style="font-weight:700">未實現損益</span>
+      <span style="font-weight:800;color:${plColor}">${twMoney(twData.total_pl, true)}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:.86rem;color:var(--sub);margin-top:4px">
+      <span>損益（含息）</span><span style="color:${inclColor}">${twMoney(twData.total_pl_incl_div, true)}</span>
+    </div>
+  </div>`;
+  body.innerHTML = summary +
+    `<div style="display:flex;justify-content:space-between;color:#6b7280;font-size:.76rem;padding:0 4px 6px">
+      <span>持倉 · ${rows.length} 檔</span><span>損益金額　·　報酬率</span></div>` +
+    rows.map((r, i) => twRowHtml(r, i, animate)).join("") +
+    `<p class="hint">👆 點任一列可編輯或移除</p>` + renderFooter();
+}
+
+function twRowHtml(r, idx = 0, animate = false) {
+  const plColor = colorOf(r.pl);
+  const delay = Math.min(idx * 28, 300);
+  const enterCls = animate ? " row-enter" : "";
+  const enterStyle = animate ? ` style="animation-delay:${delay}ms"` : "";
+  return `<a class="hlink${enterCls}"${enterStyle} href="javascript:void(0)" data-tw-edit="${esc(r.symbol)}">
+    <div class="hitem">
+      <div class="hitem-left">
+        <div class="hitem-name">
+          <div class="nm">${esc(r.name)} <span style="color:var(--sub);font-weight:400;font-size:.82em">${esc(r.symbol)}</span></div>
+          <div class="sub">${r.shares % 1 === 0 ? r.shares : r.shares.toFixed(2)} 股 · 均價 NT$${r.avg_cost.toFixed(2)}</div>
+        </div>
+      </div>
+      <div class="hitem-right">
+        <div class="nm" style="color:${plColor}">${twMoney(r.pl, true)}</div>
+        <div class="chip" style="background:${plColor}17;color:${plColor}">${pctStr(r.pl_pct)}</div>
+      </div>
+    </div>
+  </a>`;
+}
+
+document.addEventListener("click", e => {
+  const el = e.target.closest("[data-tw-edit]");
+  if (!el) return;
+  twEditSymbol = el.dataset.twEdit;
+  twOpen = true;
+  toggleSheet("twPanel", "twBackdrop", true);
+  rerenderTwPanel();
+});
+
+function rerenderTwPanel() {
+  const panel = document.getElementById("twPanel");
+  if (panel) panel.innerHTML = renderTwForm();
+}
+
+function renderTwForm() {
+  const editing = !!twEditSymbol;
+  const r = editing ? twData.rows.find(x => x.symbol === twEditSymbol) : null;
+  return `<div class="sheet-handle"></div>
+    <p class="form-hint">${editing ? "編輯" : "新增"}台股持股：直接填目前的總股數與均價（覆蓋式，不是逐筆買賣紀錄）。</p>
+    <div class="form-field"><label>代號（如 006208）</label>
+      <input type="text" id="f_tw_symbol" style="text-transform:uppercase" value="${editing ? esc(r.symbol) : ""}" ${editing ? "disabled" : ""}></div>
+    <div class="form-field"><label>名稱</label><input type="text" id="f_tw_name" value="${editing ? esc(r.name) : ""}"></div>
+    <div class="form-row">
+      <div class="form-field"><label>總股數</label><input type="number" id="f_tw_shares" min="0" step="any" value="${editing ? r.shares : ""}"></div>
+      <div class="form-field"><label>均價 (NT$)</label><input type="number" id="f_tw_avg" min="0" step="any" value="${editing ? r.avg_cost : ""}"></div>
+    </div>
+    <div class="form-field"><label>累積配息 (NT$，選填)</label><input type="number" id="f_tw_div" min="0" step="any" value="${editing ? r.accum_div : 0}"></div>
+    <button type="button" class="btn-submit" data-seg-btn="tw-submit" data-value="save">💾 儲存</button>
+    ${editing ? `<button type="button" class="btn-submit" style="background:${RED};margin-top:8px" data-seg-btn="tw-submit" data-value="delete">🗑 移除此檔</button>` : ""}
+    <div id="twFormMsg"></div>`;
+}
+
+async function submitTw(action) {
+  const msgEl = document.getElementById("twFormMsg");
+  msgEl.innerHTML = "";
+  try {
+    let j;
+    if (action === "delete") {
+      const res = await fetch(`/api/tw/holdings/${encodeURIComponent(twEditSymbol)}`, { method: "DELETE" });
+      j = await res.json();
+      if (!res.ok) throw new Error(apiErrorMessage(j, "移除失敗"));
+    } else {
+      const payload = {
+        symbol: (twEditSymbol || document.getElementById("f_tw_symbol").value).toUpperCase().trim(),
+        name: document.getElementById("f_tw_name").value.trim(),
+        shares: parseFloat(document.getElementById("f_tw_shares").value || 0),
+        avg_cost: parseFloat(document.getElementById("f_tw_avg").value || 0),
+        accum_div: parseFloat(document.getElementById("f_tw_div").value || 0),
+      };
+      const res = await fetch("/api/tw/holdings", { method: "POST",
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      j = await res.json();
+      if (!res.ok) throw new Error(apiErrorMessage(j, "送出失敗"));
+    }
+    msgEl.innerHTML = `<div class="form-success">✅ ${esc(j.message)}</div>`;
+    twData = await api("/tw/holdings");
+    setTimeout(() => {
+      twOpen = false;
+      toggleSheet("twPanel", "twBackdrop", false);
+      rerenderTwBody();
+    }, 700);
+  } catch (err) {
+    msgEl.innerHTML = `<div class="form-error">${esc(err.message)}</div>`;
+  }
+}
+
+onSeg("tw-submit", val => submitTw(val));
+
+// ------------------------------------------------------------------
 // 尚未搬遷完成的頁面：先顯示佔位訊息
 // ------------------------------------------------------------------
 function renderPlaceholder(key, title) {
   const app = document.getElementById("app");
   app.innerHTML = renderHeader(title) +
-    `<p style="color:var(--sub)">這頁還在搬遷中，敬請期待。現有功能請先用 Streamlit 版 App。</p>` +
+    `<p style="color:var(--sub)">這頁還在搬遷中，敬請期待。</p>` +
     renderBottomNav(key);
   bindHeaderEvents();
 }
@@ -1372,6 +1532,7 @@ async function render() {
   if (nav === "watch") return renderWatchList();
   if (nav === "stats") return renderStats();
   if (nav === "brief") return renderBrief();
+  if (nav === "tw") return renderTwHoldings();
   return renderHome();
 }
 

@@ -28,17 +28,20 @@ HOLDINGS_FILE = os.path.join(ROOT_DIR, "holdings.csv")
 WATCH_FILE = os.path.join(ROOT_DIR, "watchlist.csv")
 HISTORY_FILE = os.path.join(ROOT_DIR, "history.csv")
 CONFIG_FILE = os.path.join(ROOT_DIR, "config.json")
+TW_HOLDINGS_FILE = os.path.join(ROOT_DIR, "holdings_tw.csv")
 
 # Render 這類免費方案重啟後磁碟是全新的，開機時先把 GitHub 上最新的資料拉回來
 # （本機開發沒設定 GITHUB_TOKEN 就完全不會發生，行為跟以前一樣）
 for _repo_path, _local_path in [
     ("holdings.csv", HOLDINGS_FILE), ("watchlist.csv", WATCH_FILE),
     ("history.csv", HISTORY_FILE), ("config.json", CONFIG_FILE),
+    ("holdings_tw.csv", TW_HOLDINGS_FILE),
 ]:
     github_sync.pull_file(_repo_path, _local_path)
 
 HOLD_COLS = ["symbol", "shares", "avg_cost", "stop_price", "note"]
 WATCH_COLS = ["symbol", "target_buy", "note"]
+TW_HOLD_COLS = ["symbol", "name", "shares", "avg_cost", "accum_div"]
 
 GREEN = "#4a9a6c"
 RED = "#c26661"
@@ -94,6 +97,21 @@ def load_watch():
 def save_watch(df):
     df[WATCH_COLS].to_csv(WATCH_FILE, index=False, encoding="utf-8-sig")
     github_sync.push_file(WATCH_FILE, "watchlist.csv", "更新追蹤清單 watchlist.csv")
+
+
+def load_holdings_tw():
+    df = load_csv(TW_HOLDINGS_FILE, TW_HOLD_COLS, ["shares", "avg_cost", "accum_div"])
+    df["shares"] = df["shares"].fillna(0.0)
+    df["avg_cost"] = df["avg_cost"].fillna(0.0)
+    df["accum_div"] = df["accum_div"].fillna(0.0)
+    if "name" in df.columns:
+        df["name"] = df["name"].fillna("").astype(str)
+    return df
+
+
+def save_holdings_tw(df):
+    df[TW_HOLD_COLS].to_csv(TW_HOLDINGS_FILE, index=False, encoding="utf-8-sig")
+    github_sync.push_file(TW_HOLDINGS_FILE, "holdings_tw.csv", "更新台股持股 holdings_tw.csv")
 
 
 def load_history():
@@ -608,6 +626,80 @@ def reorder_watchlist(body: ReorderIn):
     nw = nw.set_index("symbol").loc[order].reset_index()
     save_watch(nw)
     return {"ok": True}
+
+
+# ------------------------------------------------------------------
+# 🇹🇼 台股（獨立於美股持股，報價本身就是台幣，不套用美金匯率換算）
+# ------------------------------------------------------------------
+class TwHoldingIn(BaseModel):
+    symbol: str
+    name: str = ""
+    shares: float = Field(gt=0)
+    avg_cost: float = Field(gt=0)
+    accum_div: float = Field(0.0, ge=0)
+
+
+@app.get("/api/tw/holdings")
+def get_tw_holdings():
+    hh = load_holdings_tw()
+    if hh.empty:
+        return {"empty": True, "rows": [], "total_market_value": 0, "total_cost": 0,
+                "total_pl": 0, "total_pl_incl_div": 0}
+    recs = hh.to_dict("records")
+    with ThreadPoolExecutor(max_workers=min(6, len(recs))) as ex:
+        quotes = list(ex.map(lambda r: mk.get_light(f"{r['symbol']}.TW"), recs))
+    rows = []
+    for r, q in zip(recs, quotes):
+        shares = r["shares"] or 0.0
+        avg = r["avg_cost"] or 0.0
+        price = q["price"] or 0.0
+        cost = shares * avg
+        mv = shares * price
+        pl = mv - cost
+        plpct = (pl / cost * 100) if cost else 0.0
+        accum_div = r["accum_div"] or 0.0
+        rows.append({
+            "symbol": r["symbol"], "name": r.get("name") or r["symbol"],
+            "shares": shares, "avg_cost": avg, "price": price,
+            "day_pct": q["change_pct"], "cost": cost, "market_value": mv,
+            "pl": pl, "pl_pct": plpct, "accum_div": accum_div,
+            "pl_incl_div": pl + accum_div,
+        })
+    return {
+        "empty": False, "rows": rows,
+        "total_market_value": sum(r["market_value"] for r in rows),
+        "total_cost": sum(r["cost"] for r in rows),
+        "total_pl": sum(r["pl"] for r in rows),
+        "total_pl_incl_div": sum(r["pl_incl_div"] for r in rows),
+    }
+
+
+@app.post("/api/tw/holdings")
+def upsert_tw_holding(body: TwHoldingIn):
+    s = body.symbol.upper().strip()
+    if not s:
+        raise HTTPException(400, "請填代號。")
+    hh = load_holdings_tw()
+    rec = {"symbol": s, "name": body.name or s, "shares": body.shares,
+           "avg_cost": body.avg_cost, "accum_div": body.accum_div}
+    if s in hh["symbol"].values:
+        for k, v in rec.items():
+            hh.loc[hh["symbol"] == s, k] = v
+    else:
+        hh = pd.concat([hh, pd.DataFrame([rec])], ignore_index=True)
+    save_holdings_tw(hh)
+    return {"ok": True, "message": f"已更新台股 {s}！"}
+
+
+@app.delete("/api/tw/holdings/{symbol}")
+def remove_tw_holding(symbol: str):
+    s = symbol.upper().strip()
+    hh = load_holdings_tw()
+    if s not in hh["symbol"].values:
+        raise HTTPException(404, f"台股清單裡沒有 {s}。")
+    hh = hh[hh["symbol"] != s].reset_index(drop=True)
+    save_holdings_tw(hh)
+    return {"ok": True, "message": f"已移除 {s}。"}
 
 
 @app.post("/api/transactions/dividend")
