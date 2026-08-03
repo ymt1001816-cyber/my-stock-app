@@ -1334,6 +1334,7 @@ async function renderCalendar() {
 // 🇹🇼 台股（獨立於美股持股，報價本身是台幣，不套用匯率換算）
 // ------------------------------------------------------------------
 let twData = null;
+let twHistData = null;
 let twOpen = false;
 let twEditSymbol = null;
 
@@ -1363,40 +1364,68 @@ async function renderTwHoldings() {
     toggleSheet("twPanel", "twBackdrop", false);
   });
 
-  twData = await api("/tw/holdings");
+  [twData, twHistData] = await Promise.all([api("/tw/holdings"), api("/tw/history")]);
   rerenderTwBody();
 }
 
 function rerenderTwBody(animate = false) {
   const body = document.getElementById("twBody");
   if (!body) return;
+
+  let html;
   if (twData.empty) {
-    body.innerHTML = emptyState("🇹🇼", "還沒有台股持股", "點右上角「➕」新增第一檔。") + renderFooter();
-    return;
+    html = emptyState("🇹🇼", "還沒有台股持股", "點右上角「➕」新增第一檔。");
+  } else {
+    const rows = twData.rows;
+    const plColor = colorOf(twData.total_pl);
+    const inclColor = colorOf(twData.total_pl_incl_div);
+    const summary = `<div class="wcard sm" style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;font-size:.86rem;color:var(--sub)">
+        <span>總市值</span><span>${twMoney(twData.total_market_value)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:.86rem;color:var(--sub);margin-top:4px">
+        <span>總成本</span><span>${twMoney(twData.total_cost)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:8px">
+        <span style="font-weight:700">未實現損益</span>
+        <span style="font-weight:800;color:${plColor}">${twMoney(twData.total_pl, true)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:.86rem;color:var(--sub);margin-top:4px">
+        <span>損益（含息）</span><span style="color:${inclColor}">${twMoney(twData.total_pl_incl_div, true)}</span>
+      </div>
+    </div>`;
+    html = summary +
+      `<div style="display:flex;justify-content:space-between;color:#6b7280;font-size:.76rem;padding:0 4px 6px">
+        <span>持倉 · ${rows.length} 檔</span><span>損益金額　·　報酬率</span></div>` +
+      rows.map((r, i) => twRowHtml(r, i, animate)).join("") +
+      `<p class="hint">👆 點任一列可編輯或移除</p>`;
   }
-  const rows = twData.rows;
-  const plColor = colorOf(twData.total_pl);
-  const inclColor = colorOf(twData.total_pl_incl_div);
-  const summary = `<div class="wcard sm" style="margin-bottom:10px">
-    <div style="display:flex;justify-content:space-between;font-size:.86rem;color:var(--sub)">
-      <span>總市值</span><span>${twMoney(twData.total_market_value)}</span>
+
+  html += `<hr style="margin:20px 0 12px"><h4>📜 已實現損益</h4>`;
+  if (twHistData.empty) {
+    html += `<p class="hint">還沒有台股已賣出的紀錄。</p>`;
+  } else {
+    const hColor = colorOf(twHistData.total_pl);
+    html += `<div style="display:flex;justify-content:space-between;margin-bottom:8px">
+      <span style="font-weight:700">合計已實現損益</span>
+      <span style="font-weight:800;color:${hColor}">${twMoney(twHistData.total_pl, true)}</span>
+    </div>`;
+    html += twHistData.rows.map(twHistRowHtml).join("");
+  }
+  body.innerHTML = html + renderFooter();
+}
+
+function twHistRowHtml(r) {
+  const plColor = colorOf(r.pl);
+  const priceInfo = r.buy_price && r.sell_price
+    ? `NT$${r.buy_price.toFixed(2)} → NT$${r.sell_price.toFixed(2)}　·　` : "";
+  return `<div class="posblock" style="margin-bottom:8px">
+    <div style="display:flex;justify-content:space-between;gap:8px">
+      <span><b>${esc(r.name)}</b> <span style="color:var(--sub);font-size:.85em">${esc(r.symbol)}</span></span>
+      <span style="font-weight:800;color:${plColor}">${twMoney(r.pl, true)}（${pctStr(r.pl_pct)}）</span>
     </div>
-    <div style="display:flex;justify-content:space-between;font-size:.86rem;color:var(--sub);margin-top:4px">
-      <span>總成本</span><span>${twMoney(twData.total_cost)}</span>
-    </div>
-    <div style="display:flex;justify-content:space-between;margin-top:8px">
-      <span style="font-weight:700">未實現損益</span>
-      <span style="font-weight:800;color:${plColor}">${twMoney(twData.total_pl, true)}</span>
-    </div>
-    <div style="display:flex;justify-content:space-between;font-size:.86rem;color:var(--sub);margin-top:4px">
-      <span>損益（含息）</span><span style="color:${inclColor}">${twMoney(twData.total_pl_incl_div, true)}</span>
-    </div>
+    <div style="color:var(--sub);font-size:.85rem">${esc(r.date)}　·　${priceInfo}${r.shares % 1 === 0 ? r.shares : r.shares.toFixed(2)} 股</div>
   </div>`;
-  body.innerHTML = summary +
-    `<div style="display:flex;justify-content:space-between;color:#6b7280;font-size:.76rem;padding:0 4px 6px">
-      <span>持倉 · ${rows.length} 檔</span><span>損益金額　·　報酬率</span></div>` +
-    rows.map((r, i) => twRowHtml(r, i, animate)).join("") +
-    `<p class="hint">👆 點任一列可編輯或移除</p>` + renderFooter();
 }
 
 function twRowHtml(r, idx = 0, animate = false) {

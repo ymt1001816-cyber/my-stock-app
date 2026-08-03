@@ -29,13 +29,14 @@ WATCH_FILE = os.path.join(ROOT_DIR, "watchlist.csv")
 HISTORY_FILE = os.path.join(ROOT_DIR, "history.csv")
 CONFIG_FILE = os.path.join(ROOT_DIR, "config.json")
 TW_HOLDINGS_FILE = os.path.join(ROOT_DIR, "holdings_tw.csv")
+TW_HISTORY_FILE = os.path.join(ROOT_DIR, "history_tw.csv")
 
 # Render 這類免費方案重啟後磁碟是全新的，開機時先把 GitHub 上最新的資料拉回來
 # （本機開發沒設定 GITHUB_TOKEN 就完全不會發生，行為跟以前一樣）
 for _repo_path, _local_path in [
     ("holdings.csv", HOLDINGS_FILE), ("watchlist.csv", WATCH_FILE),
     ("history.csv", HISTORY_FILE), ("config.json", CONFIG_FILE),
-    ("holdings_tw.csv", TW_HOLDINGS_FILE),
+    ("holdings_tw.csv", TW_HOLDINGS_FILE), ("history_tw.csv", TW_HISTORY_FILE),
 ]:
     github_sync.pull_file(_repo_path, _local_path)
 
@@ -112,6 +113,30 @@ def load_holdings_tw():
 def save_holdings_tw(df):
     df[TW_HOLD_COLS].to_csv(TW_HOLDINGS_FILE, index=False, encoding="utf-8-sig")
     github_sync.push_file(TW_HOLDINGS_FILE, "holdings_tw.csv", "更新台股持股 holdings_tw.csv")
+
+
+TW_HIST_COLS = ["date", "symbol", "name", "shares", "buy_price", "sell_price", "pl", "pl_pct", "fee", "tax"]
+
+
+def load_history_tw():
+    if not os.path.exists(TW_HISTORY_FILE):
+        return pd.DataFrame(columns=TW_HIST_COLS)
+    df = pd.read_csv(TW_HISTORY_FILE, dtype={"symbol": str})
+    for c in ["shares", "buy_price", "sell_price", "pl", "pl_pct", "fee", "tax"]:
+        if c not in df.columns:
+            df[c] = 0.0
+        df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0.0)
+    if "name" not in df.columns:
+        df["name"] = ""
+    df["name"] = df["name"].fillna("").astype(str)
+    return df
+
+
+def append_history_tw(rec):
+    h = load_history_tw()
+    h = pd.concat([h, pd.DataFrame([rec])], ignore_index=True) if not h.empty else pd.DataFrame([rec])
+    h.to_csv(TW_HISTORY_FILE, index=False, encoding="utf-8-sig")
+    github_sync.push_file(TW_HISTORY_FILE, "history_tw.csv", "新增台股已實現損益 history_tw.csv")
 
 
 def load_history():
@@ -700,6 +725,48 @@ def remove_tw_holding(symbol: str):
     hh = hh[hh["symbol"] != s].reset_index(drop=True)
     save_holdings_tw(hh)
     return {"ok": True, "message": f"已移除 {s}。"}
+
+
+class TwHistoryIn(BaseModel):
+    symbol: str
+    name: str = ""
+    date: str
+    shares: float = Field(gt=0)
+    pl: float
+    pl_pct: float = 0.0
+    buy_price: float = Field(0.0, ge=0)
+    sell_price: float = Field(0.0, ge=0)
+    fee: float = Field(0.0, ge=0)
+    tax: float = Field(0.0, ge=0)
+
+
+@app.get("/api/tw/history")
+def get_tw_history():
+    h = load_history_tw()
+    if h.empty:
+        return {"empty": True, "rows": [], "total_pl": 0}
+    h = h.sort_values("date", ascending=False)
+    rows = [{
+        "date": str(r["date"])[:10], "symbol": r["symbol"], "name": r.get("name") or r["symbol"],
+        "shares": float(r["shares"] or 0), "buy_price": float(r["buy_price"] or 0),
+        "sell_price": float(r["sell_price"] or 0), "pl": float(r["pl"] or 0),
+        "pl_pct": float(r["pl_pct"] or 0), "fee": float(r["fee"] or 0), "tax": float(r["tax"] or 0),
+    } for _, r in h.iterrows()]
+    return {"empty": False, "rows": rows, "total_pl": sum(r["pl"] for r in rows)}
+
+
+@app.post("/api/tw/history")
+def add_tw_history(body: TwHistoryIn):
+    s = body.symbol.upper().strip()
+    if not s:
+        raise HTTPException(400, "請填代號。")
+    date_cls.fromisoformat(body.date)
+    append_history_tw({
+        "date": body.date, "symbol": s, "name": body.name or s, "shares": body.shares,
+        "buy_price": body.buy_price, "sell_price": body.sell_price,
+        "pl": body.pl, "pl_pct": body.pl_pct, "fee": body.fee, "tax": body.tax,
+    })
+    return {"ok": True, "message": f"已記錄 {s} 已實現損益！"}
 
 
 @app.post("/api/transactions/dividend")
