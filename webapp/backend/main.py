@@ -337,7 +337,9 @@ def get_holdings(sort: str = "mv"):
 
     # 清單每一列旁邊的小走勢圖（sparkline）：近一個月收盤價，跟其他地方共用同一個
     # get_chart 快取（300 秒），不會另外造成太多額外的 Yahoo 請求。
-    sparks = {s: ([] if ch.empty else [round(float(v), 4) for v in ch["Close"].tolist()])
+    # .dropna() 是必要的：盤中今天這一根 K 棒常常還沒收盤、Close 會是 NaN，
+    # 沒濾掉的話這個 NaN 會一路傳到 JSON 序列化那一步直接讓整個 API 500。
+    sparks = {s: ([] if ch.empty else [round(float(v), 4) for v in ch["Close"].dropna().tolist()])
               for s, ch in zip(symbols, charts)}
 
     out = []
@@ -605,7 +607,9 @@ def get_watchlist():
                 lambda s: mk.get_chart(s, period="1mo", interval="1d"), symbols)))
         quotes = quotes_f.result()
         charts = charts_f.result()
-    sparks = {s: ([] if ch.empty else [round(float(v), 4) for v in ch["Close"].tolist()])
+    # .dropna() 是必要的：盤中今天這一根 K 棒常常還沒收盤、Close 會是 NaN，
+    # 沒濾掉的話這個 NaN 會一路傳到 JSON 序列化那一步直接讓整個 API 500。
+    sparks = {s: ([] if ch.empty else [round(float(v), 4) for v in ch["Close"].dropna().tolist()])
               for s, ch in zip(symbols, charts)}
     rows = []
     for w, q in zip(recs, quotes):
