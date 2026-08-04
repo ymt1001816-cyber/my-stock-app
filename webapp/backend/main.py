@@ -936,8 +936,10 @@ def get_calendar():
         return {"empty": True, "events": []}
 
     held_set = set(held_syms)
-    with ThreadPoolExecutor(max_workers=min(6, len(all_syms))) as ex:
-        quotes = list(ex.map(mk.get_quote, all_syms))
+    # 只抓行事曆用得到的日期欄位，不要叫 get_quote：那個為了現價/基本面會多打
+    # 兩個更重的端點，一堆股票一起抓的話這頁反而變全站最慢的一頁。
+    with ThreadPoolExecutor(max_workers=min(10, len(all_syms))) as ex:
+        cals = list(ex.map(mk.get_calendar_dates, all_syms))
 
     # Yahoo 的財報/除息日資料常常是舊的（例如已經停止配息很久的公司，還留著幾年前
     # 甚至幾十年前的除息日）。只留「最近 30 天內～未來」的日期，太舊的視為過期資料濾掉；
@@ -945,14 +947,14 @@ def get_calendar():
     cutoff = date_cls.fromordinal(date_cls.today().toordinal() - 30)
 
     events = []
-    for sym, q in zip(all_syms, quotes):
+    for sym, cal in zip(all_syms, cals):
         kind = "held" if sym in held_set else "watch"
         for field, etype in [("earnings_date", "earnings"), ("ex_div_date", "ex_div"),
                               ("div_date", "div_pay")]:
-            d = q.get(field)
+            d = cal.get(field)
             if d and d >= cutoff:
                 events.append({
-                    "symbol": sym, "name": q["name"], "date": str(d),
+                    "symbol": sym, "name": sym, "date": str(d),
                     "type": etype, "label": _CAL_EVENT_LABEL[etype], "kind": kind,
                 })
     events.sort(key=lambda e: e["date"])
@@ -1007,6 +1009,7 @@ def warm_cache():
     with ThreadPoolExecutor(max_workers=5) as ex:
         list(ex.map(mk.get_light, all_syms))
         list(ex.map(mk.get_quote, all_syms))
+        list(ex.map(mk.get_calendar_dates, all_syms))
         list(ex.map(lambda s: mk.get_news(s, 4), all_syms))
         for period, interval in _CHART_RANGES:
             list(ex.map(lambda s, p=period, i=interval: mk.get_chart(s, p, i), all_syms))

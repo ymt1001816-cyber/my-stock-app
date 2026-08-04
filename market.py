@@ -226,6 +226,43 @@ def _get_quote_cached(symbol: str) -> dict:
     return q
 
 
+_EMPTY_CAL = {"earnings_date": None, "ex_div_date": None, "div_date": None}
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _get_calendar_cached(symbol: str) -> dict:
+    """只抓財報／除息／配息日期，給行事曆頁用。
+    行事曆用不到現價/基本面，故意不叫 get_quote：那個為了現價會多打
+    fast_info + info 兩個更重的端點，一堆股票一起抓時反而是最慢的一批。
+    這些日期本來就不常變，快取拉長到 1 小時也沒關係。"""
+    t = yf.Ticker(symbol)
+    try:
+        cal = t.calendar or {}
+    except Exception:
+        cal = {}
+    out = dict(_EMPTY_CAL)
+    ed = cal.get("Earnings Date")
+    if isinstance(ed, list) and ed:
+        out["earnings_date"] = ed[0]
+    elif ed:
+        out["earnings_date"] = ed
+    if cal.get("Ex-Dividend Date"):
+        out["ex_div_date"] = cal.get("Ex-Dividend Date")
+    if cal.get("Dividend Date"):
+        out["div_date"] = cal.get("Dividend Date")
+    return out
+
+
+def get_calendar_dates(symbol: str) -> dict:
+    """輕量版：只給行事曆頁用，見 _get_calendar_cached 的說明。"""
+    if not HAS_YF:
+        return dict(_EMPTY_CAL)
+    try:
+        return _get_calendar_cached(symbol)
+    except Exception:
+        return dict(_EMPTY_CAL)
+
+
 def get_quote(symbol: str) -> dict:
     """單一股票的即時報價 + 基本面 + 盤前盤後 + 分析師資料。
     抓失敗（尤其現價）不會被快取，下次呼叫會重新真的問一次，不會卡住顯示 0。"""
