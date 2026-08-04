@@ -502,9 +502,9 @@ async function submitTransaction(kind) {
     msgEl.innerHTML = `<div class="form-success">✅ ${esc(j.message)}</div>`;
     // 買/賣/配息都會連動改可用資金，把快取的 state.cash 一起更新，
     // 不然剛送出交易後馬上點「編輯可用資金」看到的還是交易前的舊數字。
-    const cfg = await api("/config");
+    // 這兩個 API 互不依賴，一起打不要排隊，不然關閉表單會多等一趟網路來回。
+    const [cfg] = await Promise.all([api("/config"), loadHoldData(true)]);
     state.cash = cfg.cash_usd;
-    await loadHoldData(true);
     // 先讓成功訊息留在表單上一下子，再關閉並刷新列表，不然訊息會被 rerenderHoldBody
     // 重畫表單的動作瞬間蓋掉，使用者完全看不到剛剛送出成功。
     setTimeout(() => {
