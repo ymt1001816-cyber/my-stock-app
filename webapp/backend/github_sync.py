@@ -15,7 +15,11 @@ from concurrent.futures import ThreadPoolExecutor
 import requests
 
 logger = logging.getLogger("github_sync")
-_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="github_sync")
+# 一定要是 1：多個 worker 平行推同一個檔案時，完成順序不保證跟送出順序一樣，
+# 舊的（資料較少的）那次有可能後完成、把新的內容蓋掉，曾經造成台股持股遺失。
+# 只用一個背景執行緒，讓所有 push 嚴格照送出順序一個一個處理，兩全其美：
+# 呼叫端還是不用等 GitHub，但同一個檔案的多次寫入不會互相蓋過。
+_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="github_sync")
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 GITHUB_REPO = os.environ.get("GITHUB_REPO", "ymt1001816-cyber/my-stock-app")
