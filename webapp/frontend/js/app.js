@@ -41,6 +41,12 @@ function colorOf(x) {
   return x > 0 ? GREEN : (x < 0 ? RED : GREY);
 }
 
+// 台股慣例紅漲綠跌，跟美股（美股頁用 colorOf）相反，只有「台股」頁用這個。
+function colorOfTw(x) {
+  if (x === null || x === undefined) return GREY;
+  return x > 0 ? RED : (x < 0 ? GREEN : GREY);
+}
+
 // 股票 logo：用真正的 <img>（可以 lazy-load、抓不到圖時 onerror 直接移除，
 // 露出底下 wrapper 的中性底色，不會出現「圖片壞掉」的破圖示）。
 function logoImg(symbol, size = 44, radius, url) {
@@ -53,7 +59,7 @@ function logoImg(symbol, size = 44, radius, url) {
     <span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
       font-size:${fs}px;font-weight:800;color:var(--sub)">${initial}</span>
     <img src="${url}" alt="" loading="lazy" decoding="async"
-      style="position:relative;z-index:1;width:78%;height:78%;object-fit:contain;display:block;margin:11% auto;
+      style="position:relative;z-index:1;width:94%;height:94%;object-fit:contain;display:block;margin:3% auto;
         opacity:0;transition:opacity .25s"
       onload="this.previousElementSibling.style.display='none';this.style.opacity=1"
       onerror="this.remove()"></span>`;
@@ -494,6 +500,10 @@ async function submitTransaction(kind) {
     const j = await res.json();
     if (!res.ok) throw new Error(apiErrorMessage(j, "送出失敗"));
     msgEl.innerHTML = `<div class="form-success">✅ ${esc(j.message)}</div>`;
+    // 買/賣/配息都會連動改可用資金，把快取的 state.cash 一起更新，
+    // 不然剛送出交易後馬上點「編輯可用資金」看到的還是交易前的舊數字。
+    const cfg = await api("/config");
+    state.cash = cfg.cash_usd;
     await loadHoldData(true);
     // 先讓成功訊息留在表單上一下子，再關閉並刷新列表，不然訊息會被 rerenderHoldBody
     // 重畫表單的動作瞬間蓋掉，使用者完全看不到剛剛送出成功。
@@ -1377,8 +1387,8 @@ function rerenderTwBody(animate = false) {
     html = emptyState("🇹🇼", "還沒有台股持股", "點右上角「➕」新增第一檔。");
   } else {
     const rows = twData.rows;
-    const plColor = colorOf(twData.total_pl);
-    const inclColor = colorOf(twData.total_pl_incl_div);
+    const plColor = colorOfTw(twData.total_pl);
+    const inclColor = colorOfTw(twData.total_pl_incl_div);
     const summary = `<div class="wcard sm" style="margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;font-size:.86rem;color:var(--sub)">
         <span>總市值</span><span>${twMoney(twData.total_market_value)}</span>
@@ -1405,7 +1415,7 @@ function rerenderTwBody(animate = false) {
   if (twHistData.empty) {
     html += `<p class="hint">還沒有台股已賣出的紀錄。</p>`;
   } else {
-    const hColor = colorOf(twHistData.total_pl);
+    const hColor = colorOfTw(twHistData.total_pl);
     html += `<div style="display:flex;justify-content:space-between;margin-bottom:8px">
       <span style="font-weight:700">合計已實現損益</span>
       <span style="font-weight:800;color:${hColor}">${twMoney(twHistData.total_pl, true)}</span>
@@ -1416,7 +1426,7 @@ function rerenderTwBody(animate = false) {
 }
 
 function twHistRowHtml(r) {
-  const plColor = colorOf(r.pl);
+  const plColor = colorOfTw(r.pl);
   const priceInfo = r.buy_price && r.sell_price
     ? `NT$${r.buy_price.toFixed(2)} → NT$${r.sell_price.toFixed(2)}　·　` : "";
   return `<div class="posblock" style="margin-bottom:8px">
@@ -1429,7 +1439,7 @@ function twHistRowHtml(r) {
 }
 
 function twRowHtml(r, idx = 0, animate = false) {
-  const plColor = colorOf(r.pl);
+  const plColor = colorOfTw(r.pl);
   const delay = Math.min(idx * 28, 300);
   const enterCls = animate ? " row-enter" : "";
   const enterStyle = animate ? ` style="animation-delay:${delay}ms"` : "";

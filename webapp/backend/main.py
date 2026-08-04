@@ -176,6 +176,13 @@ def save_config(cfg):
     github_sync.push_file(CONFIG_FILE, "config.json", "更新 config.json")
 
 
+def adjust_cash(delta_usd):
+    """買賣/配息會實際影響手上現金，可用資金要跟著自動增減，不能只能手動改。"""
+    cfg = load_config()
+    cfg["cash_usd"] = round(float(cfg.get("cash_usd") or 0) + delta_usd, 2)
+    save_config(cfg)
+
+
 def enrich_holdings(hold):
     recs = hold.to_dict("records")
     if not recs:
@@ -532,6 +539,7 @@ def transaction_buy(body: BuyIn):
                     "fee": fee, "tax": 0, "year": dt.year, "quarter": qtr,
                     "yq": f"{dt.year}Q{qtr}", "cost_usd": round(sh * px + fee, 2),
                     "income_usd": 0})
+    adjust_cash(-(sh * px + fee))
     return {"ok": True, "message": f"已買進 {s} {sh:g} 股，持股與平均成本已更新！"}
 
 
@@ -567,6 +575,7 @@ def transaction_sell(body: SellIn):
     else:
         hh.loc[hh["symbol"] == s, "shares"] = left
     save_holdings(hh)
+    adjust_cash(income - fee - tax)
     return {"ok": True, "message": f"已賣出 {s} {sh:g} 股，實現損益 ${pl:+,.2f}（{plpct*100:+.1f}%）！"}
 
 
@@ -783,6 +792,7 @@ def transaction_dividend(body: DividendIn):
                     "pl_twd": round(body.amount * rate, 2), "fee": 0, "tax": 0,
                     "year": dt.year, "quarter": qtr, "yq": f"{dt.year}Q{qtr}",
                     "cost_usd": 0, "income_usd": round(body.amount, 2)})
+    adjust_cash(body.amount)
     return {"ok": True, "message": f"已記錄 {s} 配息 ${body.amount:,.2f}！"}
 
 

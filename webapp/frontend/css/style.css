@@ -7,7 +7,7 @@
   --card-hl:inset 0 1px 0 rgba(255,255,255,.8);
   --accent:#f2941f; --accent-dk:#c96e0a; --accent-lt:#fbdca3; --accent-text:var(--accent-dk);
   --green:#18a558; --red:#e0405a;
-  --logo-bg:#dde2e9; --logo-border:#c7ced8;
+  --logo-bg:#cfd6e0; --logo-border:#b7c0cd;
   --bottomnav-bg:rgba(255,255,255,.86); --bottomnav-sh:0 -8px 26px rgba(15,23,42,.10);
   --r-sm:12px; --r-md:16px; --r-lg:22px; --r-xl:26px;
   --sh-sm:0 1px 3px rgba(17,24,39,.07);
@@ -59,7 +59,8 @@ button{font-family:inherit;cursor:pointer}
 /* 返回鈕：小圓按鈕 */
 .btn-back{width:42px;height:42px;min-width:42px;padding:0;border-radius:50%;font-size:1.15rem;
   font-weight:800;background:var(--card);border:1px solid var(--line);box-shadow:var(--sh-sm);
-  color:var(--ink);margin-bottom:6px;transition:transform .2s var(--bounce),box-shadow .2s}
+  color:var(--ink);margin-bottom:6px;transition:transform .2s var(--bounce),box-shadow .2s;
+  display:flex;align-items:center;justify-content:center;line-height:1}
 .btn-back:hover{transform:translateY(-1px) scale(1.05);box-shadow:var(--sh-md)}
 .btn-back:active{transform:scale(.9)}
 
