@@ -532,7 +532,7 @@ def transaction_buy(body: BuyIn):
             "symbol": s, "shares": sh, "avg_cost": round((sh * px + fee) / sh, 4),
             "stop_price": body.stop_price or None, "note": body.note}])], ignore_index=True)
     save_holdings(hh)
-    q = mk.get_quote(s)
+    q = mk.get_light(s)
     qtr = _qtr(dt)
     append_history({"date": str(dt), "symbol": s, "name": q["name"], "type": "買進",
                     "shares": sh, "price": px, "pl_pct": 0, "pl_usd": 0, "pl_twd": 0,
@@ -561,7 +561,7 @@ def transaction_sell(body: SellIn):
     pl = income - cost - fee - tax
     plpct = pl / cost if cost else 0
     rate = mk.get_usdtwd() or 0
-    q = mk.get_quote(s)
+    q = mk.get_light(s)
     qtr = _qtr(dt)
     append_history({"date": str(dt), "symbol": s, "name": q["name"], "type": "賣出",
                     "shares": sh, "price": px, "pl_pct": round(plpct, 6),
@@ -785,7 +785,7 @@ def transaction_dividend(body: DividendIn):
         raise HTTPException(400, "請填代號。")
     dt = date_cls.fromisoformat(body.date)
     rate = mk.get_usdtwd() or 0
-    q = mk.get_quote(s)
+    q = mk.get_light(s)
     qtr = _qtr(dt)
     append_history({"date": str(dt), "symbol": s, "name": q["name"], "type": "配息",
                     "shares": 0, "price": 0, "pl_pct": 0, "pl_usd": round(body.amount, 2),
