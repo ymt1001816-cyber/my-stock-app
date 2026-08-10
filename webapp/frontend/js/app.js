@@ -881,6 +881,10 @@ function bindWatchGestures() {
   let startX = 0, startY = 0, dx = 0, width = 1, grabOffset = 0;
   let mode = "idle"; // idle | deciding | swipe | reorder
   let pressTimer = null;
+  // 拖曳排序時用「初始位置 + 已交換幾格」算目前應該在的位置，不要每次 touchmove
+  // 都呼叫 getBoundingClientRect（那個會強制觸發同步 layout，手指一直動、
+  // 一直逼瀏覽器重新排版，長按拖曳排序才會感覺卡卡的）。
+  let reorderRowH = 0, reorderTop0 = 0, reorderOffsetIdx = 0;
 
   function cleanup() {
     clearTimeout(pressTimer);
@@ -892,6 +896,9 @@ function bindWatchGestures() {
   function enterReorderMode() {
     const r = wrap.getBoundingClientRect();
     grabOffset = startY - (r.top + r.height / 2);
+    reorderRowH = r.height;
+    reorderTop0 = r.top;
+    reorderOffsetIdx = 0;
     wrap.classList.add("reordering");
     wrap.style.zIndex = "50";
     suppressWatchTapNav = true;
@@ -935,21 +942,20 @@ function bindWatchGestures() {
       e.preventDefault();
       const parent = wrap.parentElement;
       const draggedCenter = t.clientY - grabOffset;
-      wrap.style.transform = "none";
-      const natural = wrap.getBoundingClientRect();
-      wrap.style.transform = `translateY(${draggedCenter - (natural.top + natural.height / 2)}px)`;
+      const naturalTop = reorderTop0 + reorderOffsetIdx * reorderRowH;
+      wrap.style.transform = `translateY(${draggedCenter - (naturalTop + reorderRowH / 2)}px)`;
 
       const list = [...parent.children];
       const idx = list.indexOf(wrap);
       const prev = list[idx - 1];
-      if (prev) {
-        const pr = prev.getBoundingClientRect();
-        if (draggedCenter < pr.top + pr.height * 0.5) parent.insertBefore(wrap, prev);
+      if (prev && draggedCenter < naturalTop - reorderRowH * 0.5) {
+        parent.insertBefore(wrap, prev);
+        reorderOffsetIdx -= 1;
       }
       const next = list[idx + 1];
-      if (next) {
-        const nr = next.getBoundingClientRect();
-        if (draggedCenter > nr.top + nr.height * 0.5) parent.insertBefore(wrap, next.nextSibling);
+      if (next && draggedCenter > naturalTop + reorderRowH * 1.5) {
+        parent.insertBefore(wrap, next.nextSibling);
+        reorderOffsetIdx += 1;
       }
     }
   }, { passive: false });
@@ -1374,8 +1380,14 @@ async function renderTwHoldings() {
     toggleSheet("twPanel", "twBackdrop", false);
   });
 
-  [twData, twHistData] = await Promise.all([api("/tw/holdings"), api("/tw/history")]);
+  await loadTwData();
   rerenderTwBody();
+}
+
+async function loadTwData(force = false) {
+  if (force || !twData) {
+    [twData, twHistData] = await Promise.all([api("/tw/holdings"), api("/tw/history")]);
+  }
 }
 
 function rerenderTwBody(animate = false) {
@@ -1514,7 +1526,7 @@ async function submitTw(action) {
       if (!res.ok) throw new Error(apiErrorMessage(j, "送出失敗"));
     }
     msgEl.innerHTML = `<div class="form-success">✅ ${esc(j.message)}</div>`;
-    twData = await api("/tw/holdings");
+    await loadTwData(true);
     setTimeout(() => {
       twOpen = false;
       toggleSheet("twPanel", "twBackdrop", false);
@@ -1787,6 +1799,7 @@ async function pullToRefreshCurrentPage() {
   if (nav === "hold" && !qs("sym", null)) holdData = null;
   if (nav === "watch") watchData = null;
   if (nav === "stats") statsCache = {};
+  if (nav === "tw") twData = null;
   return render();
 }
 
