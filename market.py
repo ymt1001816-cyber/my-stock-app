@@ -131,50 +131,59 @@ def _empty_quote(symbol):
 
 
 @st.cache_data(ttl=600, show_spinner=False)
+def _get_fastinfo_for_quote_cached(symbol: str) -> dict:
+    # 只挑需要的欄位，絕對不要 dict(fast_info) 整包轉換——理由見 _fast_info_subset。
+    # marketCap 改從下面的 info 拿（反正 info 本來就會抓），不要透過 fast_info，
+    # 因為那條路徑在某些股票（尤其 ETF）上會誤觸發一次容易被 Rate Limit 擋掉的
+    # 完整 .info 抓取。
+    fi = _fast_info_subset(symbol, ["lastPrice", "previousClose", "dayHigh", "dayLow",
+                                    "yearHigh", "yearLow", "fiftyDayAverage",
+                                    "twoHundredDayAverage", "currency"])
+    if not fi.get("lastPrice"):
+        # 故意讓例外往外傳、不要快取這次結果，下次呼叫才會真的重新問一次，
+        # 不然會把「現價 0」快取起來卡 10 分鐘（曾經讓 VOO 這種正常股票顯示 -100%）。
+        raise RuntimeError(f"empty fast_info for {symbol}")
+    return fi
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _get_info_for_quote_cached(symbol: str) -> dict:
+    # 跟 fast_info 一樣，故意不接 except 就回傳 {}：.info 這個重的端點在 Render
+    # 上偶爾會比較慢或被暫時擋掉，之前是抓失敗也快取一個空字典 10 分鐘，害分析師
+    # 目標價／本益比／市值/Beta 這些完全靠 .info 的欄位整批消失一整輪。讓失敗直接
+    # 拋例外、不要快取，下次呼叫（含 10 分鐘一次的 _warm_cache）才會重新真的問一次。
+    info = yf.Ticker(symbol).info
+    if not info:
+        raise RuntimeError(f"empty info for {symbol}")
+    return info
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _get_calendar_for_quote_cached(symbol: str) -> dict:
+    try:
+        return yf.Ticker(symbol).calendar or {}
+    except Exception:
+        return {}
+
+
 def _get_quote_cached(symbol: str) -> dict:
     q = _empty_quote(symbol)
-    t = yf.Ticker(symbol)
-
-    def _fi():
-        # 只挑需要的欄位，絕對不要 dict(fast_info) 整包轉換——理由見 _fast_info_subset。
-        # marketCap 改從下面的 info 拿（反正 info 本來就會抓），不要透過 fast_info，
-        # 因為那條路徑在某些股票（尤其 ETF）上會誤觸發一次容易被 Rate Limit 擋掉的
-        # 完整 .info 抓取。
-        return _fast_info_subset(symbol, ["lastPrice", "previousClose", "dayHigh", "dayLow",
-                                          "yearHigh", "yearLow", "fiftyDayAverage",
-                                          "twoHundredDayAverage", "currency"])
-
-    def _info():
-        try:
-            return t.info or {}
-        except Exception:
-            return {}
-
-    def _cal():
-        try:
-            return t.calendar or {}
-        except Exception:
-            return {}
 
     # 三個 yfinance 呼叫互相獨立，平行抓取加快載入；每個都設時間上限，
     # 免得 Yahoo 那邊卡住不回應時，這個 request 也跟著卡住不放。
     with ThreadPoolExecutor(max_workers=3) as ex:
-        fi_f, info_f, cal_f = ex.submit(_fi), ex.submit(_info), ex.submit(_cal)
-        # fast_info 是現價的關鍵資料，這裡故意不接 except：抓不到就讓例外整個
-        # 往外傳、不要快取這次結果，下次呼叫才會真的重新問一次，不然會把
-        # 「現價 0」快取起來卡 10 分鐘（曾經讓 VOO 這種正常股票顯示 -100%）。
-        fi = fi_f.result(timeout=6)
+        fi_f = ex.submit(_get_fastinfo_for_quote_cached, symbol)
+        info_f = ex.submit(_get_info_for_quote_cached, symbol)
+        cal_f = ex.submit(_get_calendar_for_quote_cached, symbol)
+        fi = fi_f.result(timeout=12)
         try:
-            info = info_f.result(timeout=6)
+            info = info_f.result(timeout=12)
         except Exception:
             info = {}
         try:
-            cal = cal_f.result(timeout=6)
+            cal = cal_f.result(timeout=12)
         except Exception:
             cal = {}
-
-    if not fi.get("lastPrice"):
-        raise RuntimeError(f"empty fast_info for {symbol}")
 
     q["price"] = float(fi.get("lastPrice") or 0)
     q["prev_close"] = float(fi.get("previousClose") or 0)
