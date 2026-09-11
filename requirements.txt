@@ -1,6 +1,9 @@
-streamlit
-yfinance
-pandas
-openpyxl
-lxml
-requests
+# 版本鎖定在 2026-09-10 實測可正常運作的組合（Python 3.11）。
+# 不鎖的話 Render 每次重新部署都會抓當下最新版，上游一個 breaking change
+# 就會讓線上版無預警壞掉。要升級時手動改版號，本機測過再推。
+streamlit==1.63.0
+yfinance==1.7.0
+pandas==3.0.5
+openpyxl==3.1.5
+lxml==6.1.3
+requests==2.34.2

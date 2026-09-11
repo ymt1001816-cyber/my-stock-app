@@ -7,3 +7,6 @@ reports/
 .DS_Store
 boot.log
 streamlit_test.log
+.venv/
+.env
+.claude/

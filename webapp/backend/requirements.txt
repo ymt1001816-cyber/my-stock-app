@@ -1,7 +1,7 @@
-# 這幾個是後端框架本身需要的
-fastapi
-uvicorn[standard]
-pydantic
+# 這幾個是後端框架本身需要的（版本鎖定理由見專案根目錄的 requirements.txt）
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+pydantic==2.13.5
 
 # 其餘（pandas / yfinance / streamlit / plotly...）沿用專案根目錄的 requirements.txt，
 # 因為後端直接 import 那邊的 market.py / analysis.py：
