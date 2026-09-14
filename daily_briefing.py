@@ -75,13 +75,21 @@ def main():
             pass
 
     text = an.generate_briefing(rows, usdtwd, watch_syms)
+    os.makedirs(REPORTS, exist_ok=True)
+    open(os.path.join(REPORTS, f"briefing_{date.today()}.txt"), "w",
+         encoding="utf-8").write(text)
+
+    # 沒有 GITHUB_TOKEN 就不要碰 config.json：寫了也推不上去，只會讓本機這份跟
+    # 線上版（Render 才是現金餘額等資料的權威來源）分岔，害下一次 git pull 被
+    # 未提交變更擋住，甚至把舊的現金餘額誤當成新的。這種情況只留 reports/ 存檔。
+    if not github_sync.ENABLED:
+        log(f"完成，已存 {date.today()} 簡報到 reports/（無 GITHUB_TOKEN，不寫 config.json）。")
+        return
+
     cfg["last_briefing"] = text
     cfg["last_briefing_at"] = str(date.today())
     json.dump(cfg, open(CFG, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
     github_sync.push_file(CFG, "config.json", "每日排程更新簡報 config.json")
-    os.makedirs(REPORTS, exist_ok=True)
-    open(os.path.join(REPORTS, f"briefing_{date.today()}.txt"), "w",
-         encoding="utf-8").write(text)
     log(f"完成，已更新 {date.today()} 簡報。")
 
 
