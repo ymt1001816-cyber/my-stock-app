@@ -49,6 +49,68 @@ function colorOfTw(x) {
 
 // 股票 logo：用真正的 <img>（可以 lazy-load、抓不到圖時 onerror 直接移除，
 // 露出底下 wrapper 的中性底色，不會出現「圖片壞掉」的破圖示）。
+// ------------------------------------------------------------------
+// logo 亮度偵測
+// 有些公司的 logo 是純白的（APP、CEG、MRVL 整張圖 100% 是白的，AMZN、AAPL、
+// LITE、ALAB、CRWV、ASML 也大半是白的），放進白色圓圈裡會完全看不見。
+// 載入後取樣像素算亮度，太亮的就把那一顆圓圈換成深色底。
+//
+// 重點：量測用的是另一個「探測用」Image 物件（帶 crossOrigin），畫面上顯示的
+// 那張圖完全不加 crossOrigin。這樣萬一哪天 CDN 拿掉 CORS 標頭，最多是量不到
+// 亮度、維持白底，而不會連 logo 都載不出來。
+// ------------------------------------------------------------------
+const LOGO_TONE = (() => {
+  try { return JSON.parse(sessionStorage.getItem("logoTone") || "{}"); } catch { return {}; }
+})();
+let _toneCanvas = null;
+
+function computeTone(img) {
+  try {
+    if (!_toneCanvas) _toneCanvas = document.createElement("canvas");
+    const n = 32;
+    _toneCanvas.width = _toneCanvas.height = n;
+    const ctx = _toneCanvas.getContext("2d", { willReadFrequently: true });
+    ctx.clearRect(0, 0, n, n);
+    ctx.drawImage(img, 0, 0, n, n);
+    const d = ctx.getImageData(0, 0, n, n).data;
+    let sum = 0, cnt = 0, white = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] < 40) continue;            // 略過透明像素
+      const l = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+      sum += l; cnt++;
+      if (l > 225) white++;
+    }
+    if (!cnt) return null;
+    return (sum / cnt > 205 || white / cnt > 0.5) ? "dark" : "light";
+  } catch {
+    return null;   // 讀不到像素（跨網域被擋）就放棄，維持白底
+  }
+}
+
+function applyTone(el, tone) {
+  if (tone === "dark") el.classList.add("logo-ondark");
+}
+
+function onLogoLoad(img, symbol, url) {
+  const ph = img.previousElementSibling;
+  if (ph) ph.style.display = "none";
+  img.style.opacity = 1;
+  const circle = img.parentElement && img.parentElement.parentElement;
+  if (!circle) return;
+  const cached = LOGO_TONE[symbol];
+  if (cached) { applyTone(circle, cached); return; }
+  const probe = new Image();
+  probe.crossOrigin = "anonymous";
+  probe.onload = () => {
+    const tone = computeTone(probe);
+    if (!tone) return;
+    LOGO_TONE[symbol] = tone;
+    try { sessionStorage.setItem("logoTone", JSON.stringify(LOGO_TONE)); } catch { /* 無痕模式會擋，忽略 */ }
+    applyTone(circle, tone);
+  };
+  probe.src = url;
+}
+
 function logoImg(symbol, size = 44, radius, url) {
   url = url || `https://financialmodelingprep.com/image-stock/${symbol}.png`;
   // logo 是打第三方 CDN，常常要等一下才會出現；先用代號字母當佔位，圖片載入完
@@ -64,7 +126,7 @@ function logoImg(symbol, size = 44, radius, url) {
     <img src="${url}" alt="" loading="lazy" decoding="async"
       style="position:relative;z-index:1;width:62%;height:62%;object-fit:contain;display:block;
         opacity:0;transition:opacity .25s"
-      onload="this.previousElementSibling.style.display='none';this.style.opacity=1"
+      onload="onLogoLoad(this,'${esc(symbol)}','${url}')"
       onerror="this.remove()"></span>`;
 }
 function logoWrap(symbol, size, radius, extraStyle = "", url) {
