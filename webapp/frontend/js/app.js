@@ -54,12 +54,15 @@ function logoImg(symbol, size = 44, radius, url) {
   // logo 是打第三方 CDN，常常要等一下才會出現；先用代號字母當佔位，圖片載入完
   // 淡入蓋過去，感覺才不會像卡住，而不是空白格子晾在那邊。
   const initial = esc(String(symbol).slice(0, 2));
-  const fs = Math.round(size * 0.34);
-  return `<span style="position:relative;display:block;width:100%;height:100%">
+  const fs = Math.round(size * 0.32);
+  // logo 內縮到約六成、置中留白，跟一般財經 App 的做法一致：圖示塞滿整個圓
+  // 會讓清單看起來很擠，而且各家 logo 長寬比差很多，塞滿時大小會參差不齊。
+  return `<span style="position:relative;display:flex;align-items:center;justify-content:center;
+      width:100%;height:100%">
     <span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
       font-size:${fs}px;font-weight:800;color:var(--sub)">${initial}</span>
     <img src="${url}" alt="" loading="lazy" decoding="async"
-      style="position:relative;z-index:1;width:94%;height:94%;object-fit:contain;display:block;margin:3% auto;
+      style="position:relative;z-index:1;width:62%;height:62%;object-fit:contain;display:block;
         opacity:0;transition:opacity .25s"
       onload="this.previousElementSibling.style.display='none';this.style.opacity=1"
       onerror="this.remove()"></span>`;
@@ -67,7 +70,8 @@ function logoImg(symbol, size = 44, radius, url) {
 function logoWrap(symbol, size, radius, extraStyle = "", url) {
   // logo 統一改圓形（不管呼叫端傳進來的 radius 是多少）
   return `<div style="width:${size}px;height:${size}px;flex:0 0 auto;border-radius:50%;
-    background:var(--logo-bg);border:1px solid var(--logo-border);overflow:hidden;${extraStyle}">
+    background:var(--logo-bg);border:1px solid var(--logo-border);overflow:hidden;
+    box-shadow:var(--logo-sh);${extraStyle}">
     ${logoImg(symbol, size, radius, url)}</div>`;
 }
 

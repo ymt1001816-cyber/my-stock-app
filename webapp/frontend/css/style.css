@@ -7,7 +7,10 @@
   --card-hl:inset 0 1px 0 rgba(255,255,255,.8);
   --accent:#f2941f; --accent-dk:#c96e0a; --accent-lt:#fbdca3; --accent-text:var(--accent-dk);
   --green:#18a558; --red:#e0405a;
-  --logo-bg:#cfd6e0; --logo-border:#b7c0cd;
+  /* 圖示底色改成白色、邊框收成髮絲線：logo 本身多半是彩色的，
+     底色太深會跟 logo 搶視覺，清單掃起來很吵。 */
+  --logo-bg:#ffffff; --logo-border:rgba(17,24,39,.09);
+  --logo-sh:0 1px 3px rgba(17,24,39,.08), inset 0 0 0 1px rgba(255,255,255,.6);
   --bottomnav-bg:rgba(255,255,255,.86); --bottomnav-sh:0 -8px 26px rgba(15,23,42,.10);
   --r-sm:12px; --r-md:16px; --r-lg:22px; --r-xl:26px;
   --sh-sm:0 1px 3px rgba(17,24,39,.07);
@@ -315,7 +318,7 @@ button{font-family:inherit;cursor:pointer}
 .hitem-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .hitem-left{display:flex;align-items:center;gap:12px;min-width:0}
 .hitem-logo{width:44px;height:44px;border-radius:50%;flex:0 0 auto;overflow:hidden;
-  background:var(--logo-bg) center/78% no-repeat;border:1px solid var(--logo-border)}
+  background:var(--logo-bg);border:1px solid var(--logo-border);box-shadow:var(--logo-sh)}
 .hitem-name{min-width:0}
 .hitem-name .sub{margin-top:3px;display:block}
 .hitem-right{text-align:right;flex:0 0 auto}
