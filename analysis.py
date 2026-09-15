@@ -216,7 +216,9 @@ def generate_briefing(rows, usdtwd=0, watch_syms=None) -> str:
             f"<div class='tcard' style='border-left-color:{cc}'>"
             f"<div class='nm'>{i['name']}</div>"
             f"<div style='color:{cc};font-weight:800'>{arrow} {i['pct']:+.2f}%</div></div>")
-    out.append("".join(idx_cards))
+    # idxrow / cardgrid 這兩個容器在手機上就是單純的直排（跟以前一樣），
+    # 電腦上 CSS 才會把它們攤成多欄，不然簡報在寬螢幕會是很長的一條。
+    out.append(f"<div class='idxrow'>{''.join(idx_cards)}</div>")
     spx = next((i for i in idx if "S&P" in i["name"]), None)
     if spx:
         mood = ("偏多、風險偏好回升" if spx["pct"] > 0.3
@@ -230,13 +232,14 @@ def generate_briefing(rows, usdtwd=0, watch_syms=None) -> str:
             body = f"<div class='nrow-t'>{n['title']}</div><div class='nrow-m'>{meta}</div>"
             news_cards.append(f"<a href='{n['link']}' target='_blank' class='nrow'>{body}</a>"
                               if n.get("link") else f"<div class='nrow'>{body}</div>")
-        out.append("".join(news_cards))
+        out.append(f"<div class='cardgrid'>{''.join(news_cards)}</div>")
 
     # 2) 我的持股：今日大幅漲跌
     out.append(_sec("🔔 我的持股：今日大幅漲跌"))
     if not movers:
         out.append(_bcard("今天沒有漲跌超過 3% 的持股，整體平穩 👍", cc=_GREEN))
     else:
+        cards = []
         for r, news in zip(movers, mover_news):
             up = r["day_pct"] > 0
             cc = _GREEN if up else _RED
@@ -244,7 +247,8 @@ def generate_briefing(rows, usdtwd=0, watch_syms=None) -> str:
             headline = news[0]["title"] if news else "（暫無相關新聞）"
             title = (f"{r['symbol']} <span style='color:{cc};font-weight:800'>"
                      f"今日{d} {r['day_pct']:+.1f}%</span>")
-            out.append(_bcard(title, headline, cc))
+            cards.append(_bcard(title, headline, cc))
+        out.append(f"<div class='cardgrid'>{''.join(cards)}</div>")
 
     # 3) 值得關注的股票
     out.append(_sec("🎯 值得關注的股票"))
@@ -252,12 +256,14 @@ def generate_briefing(rows, usdtwd=0, watch_syms=None) -> str:
         out.append(_bcard("你的追蹤清單是空的",
                           "到「👀 追蹤清單」加入想買的股票，這裡每天就會幫你盯著＋附上新聞。"))
     else:
+        cards = []
         for s, q, news in zip(watch_syms, watch_quotes, watch_news):
             trend = ("多頭趨勢" if (q["ma50"] and q["ma200"] and q["price"] > q["ma50"] > q["ma200"])
                      else "偏弱" if (q["ma200"] and q["price"] < q["ma200"]) else "區間整理")
             headline = news[0]["title"] if news else "（暫無相關新聞）"
             title = (f"{s} 現價 &#36;{q['price']:,.2f}（今日 {q['change_pct']:+.1f}%）· {trend}")
-            out.append(_bcard(title, headline))
+            cards.append(_bcard(title, headline))
+        out.append(f"<div class='cardgrid'>{''.join(cards)}</div>")
 
     # 4) 我的組合摘要
     if rows:

@@ -162,9 +162,10 @@ function renderHeader(title, extraHtml = "") {
 }
 
 function renderBottomNav(activeKey) {
+  // 手機是底部橫條（只有 icon），桌面在 CSS 裡改成左側側邊欄、這時才把文字標籤顯示出來。
   const links = NAV.map(n => `<a class="navlink${n.key === activeKey ? " active" : ""}"
-    href="?nav=${n.key}"><div class="ic">${n.ic}</div></a>`).join("");
-  return `<div class="bottomnav">${links}</div>`;
+    href="?nav=${n.key}"><div class="ic">${n.ic}</div><div class="navlabel">${n.label}</div></a>`).join("");
+  return `<div class="bottomnav"><div class="navbrand">📊 投資中心</div>${links}</div>`;
 }
 
 function bindHeaderEvents() {
@@ -261,9 +262,13 @@ async function renderHome() {
     }).join("");
   }
 
-  body.innerHTML = hero + smallCards + cashStrip + calStrip +
-    `<div class="hint">👉 <b>點資產總額看資產走勢</b>　·　<b>點可用資金設定金額</b></div>` +
-    allocHtml + winnersHtml + alertsHtml + renderFooter();
+  // .home-top / .home-cols 在手機上是 display:contents（等於不存在，排版跟以前一模一樣），
+  // 桌面版才變成格線容器：上方數字卡並排、下方「資產配置」與「提醒」左右兩欄。
+  body.innerHTML =
+    `<div class="home-top">${hero}${smallCards}${cashStrip}${calStrip}` +
+    `<div class="hint">👉 <b>點資產總額看資產走勢</b>　·　<b>點可用資金設定金額</b></div></div>` +
+    `<div class="home-cols"><div class="home-col">${allocHtml}</div>` +
+    `<div class="home-col">${winnersHtml}${alertsHtml}</div></div>` + renderFooter();
 
   if (s.total_mv_usd) {
     const donutCanvas = document.getElementById("allocDonut");
@@ -546,7 +551,7 @@ function rerenderHoldBody(animate = false) {
   ], holdSort) +
   `<div style="display:flex;justify-content:space-between;color:#6b7280;font-size:.76rem;padding:0 4px 6px">
     <span>持倉 · ${rows.length} 檔</span><span>損益金額　·　報酬率</span></div>` +
-  rows.map((r, i) => stockRowHtml(r, "hold", i, animate)).join("") +
+  `<div class="cardgrid">${rows.map((r, i) => stockRowHtml(r, "hold", i, animate)).join("")}</div>` +
   `<p class="hint">👆 點任一列看個股詳細（走勢圖、盤前盤後、財報、建議）</p>` + renderFooter();
   const panel = document.getElementById("addTxPanel");
   if (panel) panel.innerHTML = renderAddForm();
@@ -827,7 +832,7 @@ function rerenderWatchBody(animate = false) {
   body.innerHTML =
     `<div style="display:flex;justify-content:space-between;color:#6b7280;font-size:.76rem;padding:0 4px 6px">
       <span>觀察 · ${watchData.rows.length} 檔</span><span>現價　·　單日漲跌</span></div>` +
-    watchData.rows.map((w, i) => watchRowHtml(w, i, animate)).join("") +
+    `<div class="cardgrid">${watchData.rows.map((w, i) => watchRowHtml(w, i, animate)).join("")}</div>` +
     `<p class="hint">👆 點看詳細　·　👈 左滑到底移除　·　長按拖曳排序</p>` + renderFooter();
   paintSparklines(body);
 }
@@ -1084,7 +1089,9 @@ function rerenderStatsBody() {
 
   const showN = statsShowN[statsPeriod] || 10;
   const shown = s.transactions.slice(0, showN);
-  const txHtml = shown.length ? shown.map(txCardHtml).join("") : "<i>此區間沒有交易。</i>";
+  const txHtml = shown.length
+    ? `<div class="cardgrid">${shown.map(txCardHtml).join("")}</div>`
+    : "<i>此區間沒有交易。</i>";
   const moreBtn = showN < s.transactions.length
     ? `<button type="button" class="btn-submit" data-seg-btn="stats-more" data-value="1">查看更多（還有 ${s.transactions.length - showN} 筆）</button>`
     : "";
@@ -1095,7 +1102,7 @@ function rerenderStatsBody() {
 
   body.innerHTML = summary +
     sec(`💳 交易明細（${s.range_count} 筆）`) + txHtml + moreBtn +
-    sec("🏆 個股損益排行（全部歷史）") + rankHtml + renderFooter();
+    sec("🏆 個股損益排行（全部歷史）") + `<div class="cardgrid">${rankHtml}</div>` + renderFooter();
 }
 
 onSeg("stats-more", () => {
@@ -1337,11 +1344,12 @@ async function renderCalendar() {
   const past = c.events.filter(e => e.date < c.today).reverse();
   let html = `<p class="hint">今天：${esc(c.today)}　·　🟢 持股中　⚪ 追蹤清單</p>`;
   html += sec(`🔜 即將到來（${upcoming.length}）`);
-  html += upcoming.length ? upcoming.map(e => eventRow(e, true)).join("")
+  html += upcoming.length
+    ? `<div class="cardgrid">${upcoming.map(e => eventRow(e, true)).join("")}</div>`
     : `<p class="hint">近期沒有排定的財報／除息／配息日期。</p>`;
   if (past.length) {
     html += sec(`🕓 一個月內已發生（${past.length}）`);
-    html += past.map(e => eventRow(e, false)).join("");
+    html += `<div class="cardgrid">${past.map(e => eventRow(e, false)).join("")}</div>`;
   }
   body.innerHTML = html + renderFooter();
 }
@@ -1419,7 +1427,7 @@ function rerenderTwBody(animate = false) {
     html = summary +
       `<div style="display:flex;justify-content:space-between;color:#6b7280;font-size:.76rem;padding:0 4px 6px">
         <span>持倉 · ${rows.length} 檔</span><span>損益金額　·　報酬率</span></div>` +
-      rows.map((r, i) => twRowHtml(r, i, animate)).join("") +
+      `<div class="cardgrid">${rows.map((r, i) => twRowHtml(r, i, animate)).join("")}</div>` +
       `<p class="hint">👆 點任一列可編輯或移除</p>`;
   }
 
@@ -1432,7 +1440,7 @@ function rerenderTwBody(animate = false) {
       <span style="font-weight:700">合計已實現損益</span>
       <span style="font-weight:800;color:${hColor}">${twMoney(twHistData.total_pl, true)}</span>
     </div>`;
-    html += twHistData.rows.map(twHistRowHtml).join("");
+    html += `<div class="cardgrid">${twHistData.rows.map(twHistRowHtml).join("")}</div>`;
   }
   body.innerHTML = html + renderFooter();
 }

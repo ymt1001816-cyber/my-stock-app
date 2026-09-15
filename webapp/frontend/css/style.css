@@ -381,3 +381,106 @@ button{font-family:inherit;cursor:pointer}
 .skel-row{height:64px;margin-bottom:8px}
 .skel-block{width:100%}
 .skel-line{height:14px;border-radius:7px}
+
+/* ============================================================
+   桌面版排版（≥1024px）
+   ------------------------------------------------------------
+   手機／平板完全維持原樣：新加的幾個容器
+   （.home-top / .home-cols / .home-col / .cardgrid / .idxrow）
+   在小螢幕一律 display:contents —— 等於這些 div 在排版上不存在，
+   子元素照舊是原本那層的直接子元素，跟加它們之前一模一樣。
+   只有寬度夠了才把它們變成真正的格線容器。
+   ============================================================ */
+.navlabel,.navbrand{display:none}
+.home-top,.home-cols,.home-col,.cardgrid,.idxrow{display:contents}
+
+@media (min-width:1024px){
+  /* --- 導覽：底部橫條 → 左側側邊欄（滑鼠操作時側邊欄比底部橫條好按得多） --- */
+  .bottomnav{
+    top:0;bottom:0;left:0;right:auto;width:216px;
+    flex-direction:column;justify-content:flex-start;align-items:stretch;gap:3px;
+    padding:20px 14px;border-top:none;border-right:1px solid var(--line);
+    box-shadow:8px 0 28px rgba(15,23,42,.05)}
+  .navbrand{display:block;font-size:1rem;font-weight:900;color:var(--ink);
+    padding:4px 12px 20px;letter-spacing:.3px}
+  .navlink{flex:0 0 auto;display:flex;align-items:center;gap:12px;
+    padding:11px 12px;text-align:left}
+  .navlink .ic svg{width:21px;height:21px}
+  .navlink.active .ic{transform:none}
+  .navlink:hover{transform:translateX(3px)}
+  .navlink:active{transform:translateX(3px) scale(.97)}
+  .navlabel{display:block;font-size:.92rem;font-weight:700;color:var(--sub);transition:color .2s}
+  .navlink.active .navlabel{color:var(--accent-dk)}
+
+  /* --- 主內容：讓開側邊欄、放寬，不再需要幫底部導覽留空間 --- */
+  #app{max-width:1240px;margin-left:216px;margin-right:auto;
+    padding:2.4rem 2.6rem 2.6rem}
+  h1{font-size:1.6rem}
+
+  /* --- 總覽：左邊一張大的資產總額，右邊堆疊三個小區塊 ---
+     nth-child 對應 renderHome 固定的輸出順序：
+     1 資產總額 / 2 今日+未實現損益 / 3 可用資金 / 4 行事曆 / 5 提示文字 --- */
+  .home-top{display:grid;grid-template-columns:1.08fr .92fr;gap:12px 20px;align-items:start}
+  .home-top>*:nth-child(1){grid-column:1;grid-row:1/span 3;align-self:stretch}
+  .home-top>*:nth-child(2){grid-column:2;grid-row:1}
+  .home-top>*:nth-child(3){grid-column:2;grid-row:2;margin:0}
+  .home-top>*:nth-child(4){grid-column:2;grid-row:3;margin:0}
+  .home-top>*:nth-child(5){grid-column:1/-1;grid-row:4;margin-top:4px}
+  .home-top .hero-card{height:100%;display:flex;flex-direction:column;justify-content:center;
+    padding:30px 28px;margin:0}
+  .home-top .hero-card .wb{font-size:3rem}
+  .home-top .hero-card .wl,.home-top .hero-card .ws{font-size:.95rem}
+  .home-top .wcard.sm{min-height:96px;padding:15px 16px}
+  .home-top .wcard.sm .wl{font-size:.74rem}
+  .home-top .wcard.sm .wb{font-size:1.4rem}
+  .home-top .wcard.sm .ws{font-size:.75rem}
+  .home-top .cashstrip{padding:15px 18px}
+
+  /* 資產配置｜需要注意：左右兩欄，不要一路往下捲 */
+  .home-cols{display:grid;grid-template-columns:1fr 1fr;gap:0 24px;align-items:start}
+  .home-col{display:block;min-width:0}
+  .home-col .sec:first-child{margin-top:18px}
+  .alloc-donut-wrap{width:148px;height:148px}
+
+  /* --- 清單一律攤成兩欄卡片（.hitem 等本身已有 margin-bottom，只補水平間距） --- */
+  .cardgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:0 16px;align-items:start}
+  .cardgrid>*{min-width:0}
+
+  /* 簡報的四個大盤指數並成一排 */
+  .idxrow{display:grid;grid-template-columns:repeat(4,1fr);gap:0 12px}
+
+  /* 滑鼠有 hover，清單列的 sparkline 可以放大一點更好讀 */
+  .hitem-spark{width:78px}
+
+  /* --- 個股詳細頁：數據格在寬螢幕上一格只放一個小數字會非常空，排密一點 --- */
+  .statgrid{grid-template-columns:repeat(4,1fr)}
+  /* 技術訊號只有 3 格，攤到整個寬度每格會大到很空，限制總寬度靠左排 */
+  .statgrid.cols-3{grid-template-columns:repeat(3,minmax(0,1fr));max-width:620px}
+  .statcardwrap .grid3{grid-template-columns:repeat(4,1fr);gap:18px 14px}
+  .detail-hero{padding:24px 28px}
+  .detail-hero-price{font-size:2.5rem}
+
+  /* 台股上方的總計卡不需要橫跨整個螢幕 */
+  #twBody>.wcard.sm{max-width:460px}
+
+  /* 統計摘要：兩個數字左右並排，不要一張又寬又空的卡 */
+  .statsummary{display:grid;grid-template-columns:1fr 1fr;gap:0 28px;padding:20px 24px}
+  .statsummary .row+.row{margin-top:0;padding-top:0;border-top:none;
+    border-left:1px solid var(--line);padding-left:28px}
+  .statsummary .v{font-size:1.5rem}
+
+  /* 新增交易／加入追蹤的表單：避開側邊欄並收窄，不要橫跨整個螢幕 */
+  .sheet-panel{left:216px;max-width:720px}
+}
+
+@media (min-width:1400px){
+  #app{max-width:1560px}
+  /* 夠寬就三欄，一頁看得到更多檔 */
+  .cardgrid{grid-template-columns:repeat(3,1fr)}
+  .home-cols{gap:0 30px}
+  /* 三欄的卡片比較窄：收內距、縮小走勢圖，並讓「N 股 · 佔比 X%」維持一行 */
+  .cardgrid .hitem{padding:14px 14px;gap:8px}
+  .cardgrid .hitem-spark{width:58px;margin:0 4px}
+  .cardgrid .hitem .sub{font-size:.73rem;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis}
+}
