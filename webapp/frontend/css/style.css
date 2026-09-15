@@ -390,95 +390,152 @@ button{font-family:inherit;cursor:pointer}
    在小螢幕一律 display:contents —— 等於這些 div 在排版上不存在，
    子元素照舊是原本那層的直接子元素，跟加它們之前一模一樣。
 
-   桌面版把「側邊欄＋內容」整個收成畫面寬度的 65% 置中，不要滿版。
-   欄數一律用 auto-fit + minmax 由實際可用寬度決定，不寫死斷點，
-   這樣不管視窗怎麼縮放，卡片都不會被擠到太窄。
+   桌面版：分頁改成左側浮起的玻璃側邊欄，內容幾乎滿版、左右各留約 1cm。
+   欄數一律用 auto-fit + minmax 由實際可用寬度決定，不寫死斷點。
    ============================================================ */
 .navlabel,.navbrand{display:none}
 .home-top,.home-cols,.home-col,.cardgrid,.idxrow{display:contents}
 
-@media (min-width:1024px){
-  /* --- 導覽：底部橫條 → 左側浮起的圓角側邊欄 --- */
-  .bottomnav{
-    top:2rem;bottom:2rem;left:17.5vw;right:auto;width:186px;
-    flex-direction:column;justify-content:flex-start;align-items:stretch;gap:3px;
-    padding:18px 12px;border:1px solid var(--line);border-radius:var(--r-lg);
-    box-shadow:var(--sh-md)}
-  .navbrand{display:block;font-size:.98rem;font-weight:900;color:var(--ink);
-    padding:4px 12px 18px;letter-spacing:.3px}
-  .navlink{flex:0 0 auto;display:flex;align-items:center;gap:12px;
-    padding:11px 12px;text-align:left}
-  .navlink .ic svg{width:20px;height:20px}
-  .navlink.active .ic{transform:none}
-  .navlink:hover{transform:translateX(3px)}
-  .navlink:active{transform:translateX(3px) scale(.97)}
-  .navlabel{display:block;font-size:.9rem;font-weight:700;color:var(--sub);transition:color .2s}
-  .navlink.active .navlabel{color:var(--accent-dk)}
+/* 卡片進場：淡入＋微微上浮＋收一點點縮放，做出「氣泡浮上來」的感覺 */
+@keyframes bubble-in{
+  from{opacity:0;transform:translateY(16px) scale(.97)}
+  to{opacity:1;transform:translateY(0) scale(1)}
+}
 
-  /* --- 主內容：跟側邊欄一起收在畫面中央 65% 的範圍內 --- */
-  #app{width:65vw;max-width:none;margin-left:17.5vw;margin-right:0;
-    padding:2rem 0 2.6rem calc(186px + 2rem)}
-  h1{font-size:1.5rem}
+@media (min-width:1024px){
+  :root{
+    --edge:38px;        /* 畫面左右留白 ≈ 1cm */
+    --rail:190px;       /* 側邊欄寬度 */
+    --gap:26px;         /* 側邊欄與內容之間 */
+    --r-bubble:20px;
+    --sh-bubble:0 10px 30px -12px rgba(15,23,42,.18), 0 2px 8px rgba(15,23,42,.06);
+    --sh-bubble-hi:0 18px 44px -14px rgba(15,23,42,.26), 0 4px 12px rgba(15,23,42,.10);
+  }
+
+  /* --- 分頁：底部橫條 → 左側浮起的玻璃側邊欄 --- */
+  .bottomnav{
+    top:var(--edge);bottom:var(--edge);left:var(--edge);right:auto;width:var(--rail);
+    flex-direction:column;justify-content:flex-start;align-items:stretch;gap:4px;
+    padding:18px 12px;border:1px solid rgba(255,255,255,.7);
+    border-radius:var(--r-bubble);background:rgba(255,255,255,.72);
+    backdrop-filter:blur(18px) saturate(1.5);-webkit-backdrop-filter:blur(18px) saturate(1.5);
+    box-shadow:var(--sh-bubble), inset 0 1px 0 rgba(255,255,255,.9)}
+  .navbrand{display:block;font-size:.98rem;font-weight:900;color:var(--ink);
+    padding:6px 12px 18px;letter-spacing:.3px}
+  .navlink{position:relative;flex:0 0 auto;display:flex;align-items:center;gap:12px;
+    padding:11px 13px;text-align:left;border-radius:13px;overflow:hidden;
+    transition:background .25s, transform .3s var(--bounce)}
+  .navlink .ic svg{width:20px;height:20px}
+  .navlink .ic{transition:transform .35s var(--bounce), color .25s}
+  .navlabel{display:block;font-size:.9rem;font-weight:700;color:var(--sub);transition:color .25s}
+  .navlink:hover{transform:translateX(4px)}
+  .navlink:hover .ic{transform:scale(1.12)}
+  .navlink:active{transform:translateX(4px) scale(.97)}
+  /* 目前分頁：左側一條會抽長的強調色指示條 */
+  .navlink.active{background:linear-gradient(90deg,rgba(242,148,31,.22),rgba(242,148,31,.05))}
+  .navlink.active .ic{transform:none;color:var(--accent-dk)}
+  .navlink.active .navlabel{color:var(--accent-dk)}
+  .navlink.active::before{content:'';position:absolute;left:0;top:50%;width:3px;height:0;
+    border-radius:0 3px 3px 0;background:linear-gradient(180deg,var(--accent),var(--accent-dk));
+    animation:rail-grow .38s var(--bounce) forwards}
+  @keyframes rail-grow{to{height:62%;top:19%}}
+
+  /* --- 主內容：幾乎滿版，右邊同樣留約 1cm --- */
+  #app{width:auto;max-width:none;margin:0;
+    padding:var(--edge) var(--edge) 2.6rem calc(var(--edge) + var(--rail) + var(--gap))}
+  h1{font-size:1.52rem}
+
+  /* --- 氣泡感：卡片圓角加大、陰影更柔更散、滑過時浮起來 --- */
+  .hitem,.tcard,.nrow,.bcard,.alloccard,.statsummary,.statcardwrap,.posblock,.wcard.sm,.cashstrip{
+    border-radius:var(--r-bubble);box-shadow:var(--sh-bubble), var(--card-hl)}
+  .hero-card,.detail-hero{border-radius:26px}
+  .hitem,.tcard,.nrow,.cashstrip,.posblock{
+    transition:transform .32s var(--bounce), box-shadow .32s, border-color .25s}
+  .hitem:hover,.tcard:hover,.nrow:hover,.cashstrip:hover{
+    transform:translateY(-4px);box-shadow:var(--sh-bubble-hi), var(--card-hl)}
+  .posblock:hover{transform:translateY(-3px);box-shadow:var(--sh-bubble-hi)}
+
+  /* --- 動態：格線裡的卡片依序浮上來 --- */
+  .cardgrid>.tcard,.cardgrid>.posblock,.cardgrid>.bcard,.cardgrid>.nrow,.cardgrid>.hitem{
+    animation:bubble-in .5s var(--bounce) backwards}
+  .cardgrid>*:nth-child(1){animation-delay:.03s}
+  .cardgrid>*:nth-child(2){animation-delay:.06s}
+  .cardgrid>*:nth-child(3){animation-delay:.09s}
+  .cardgrid>*:nth-child(4){animation-delay:.12s}
+  .cardgrid>*:nth-child(5){animation-delay:.15s}
+  .cardgrid>*:nth-child(6){animation-delay:.18s}
+  .cardgrid>*:nth-child(7){animation-delay:.21s}
+  .cardgrid>*:nth-child(8){animation-delay:.24s}
+  .cardgrid>*:nth-child(9){animation-delay:.27s}
+  .cardgrid>*:nth-child(n+10){animation-delay:.3s}
+  .home-top>*,.idxrow>*{animation:bubble-in .55s var(--bounce) backwards}
+  .home-top>*:nth-child(2){animation-delay:.05s}
+  .home-top>*:nth-child(3){animation-delay:.1s}
+  .home-top>*:nth-child(4){animation-delay:.15s}
+  .idxrow>*:nth-child(2){animation-delay:.05s}
+  .idxrow>*:nth-child(3){animation-delay:.1s}
+  .idxrow>*:nth-child(4){animation-delay:.15s}
 
   /* --- 總覽：左邊一張大的資產總額，右邊堆疊三個小區塊 ---
      nth-child 對應 renderHome 固定的輸出順序：
      1 資產總額 / 2 今日+未實現損益 / 3 可用資金 / 4 行事曆 / 5 提示文字 --- */
-  .home-top{display:grid;grid-template-columns:1.05fr .95fr;gap:12px 16px;align-items:start}
+  .home-top{display:grid;grid-template-columns:1.05fr .95fr;gap:14px 20px;align-items:start}
   .home-top>*:nth-child(1){grid-column:1;grid-row:1/span 3;align-self:stretch}
   .home-top>*:nth-child(2){grid-column:2;grid-row:1}
   .home-top>*:nth-child(3){grid-column:2;grid-row:2;margin:0}
   .home-top>*:nth-child(4){grid-column:2;grid-row:3;margin:0}
-  .home-top>*:nth-child(5){grid-column:1/-1;grid-row:4;margin-top:4px}
+  .home-top>*:nth-child(5){grid-column:1/-1;grid-row:4;margin-top:4px;animation:none}
   .home-top .hero-card{height:100%;display:flex;flex-direction:column;justify-content:center;
-    padding:26px 24px;margin:0}
-  .home-top .hero-card .wb{font-size:2.5rem}
-  .home-top .hero-card .wl,.home-top .hero-card .ws{font-size:.9rem}
-  .home-top .wcard.sm{min-height:88px;padding:14px 15px}
-  .home-top .wcard.sm .wl{font-size:.72rem}
-  .home-top .wcard.sm .wb{font-size:1.28rem}
-  .home-top .wcard.sm .ws{font-size:.73rem}
-  .home-top .cashstrip{padding:14px 16px}
+    padding:30px 30px;margin:0}
+  .home-top .hero-card .wb{font-size:2.9rem}
+  .home-top .hero-card .wl,.home-top .hero-card .ws{font-size:.94rem}
+  .home-top .wcard.sm{min-height:96px;padding:16px 18px}
+  .home-top .wcard.sm .wl{font-size:.74rem}
+  .home-top .wcard.sm .wb{font-size:1.4rem}
+  .home-top .wcard.sm .ws{font-size:.75rem}
+  .home-top .cashstrip{padding:16px 18px}
 
-  /* 資產配置｜需要注意：夠寬才並排，不夠就自動掉回單欄 */
-  .home-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));
-    gap:0 22px;align-items:start}
+  /* 資產配置｜需要注意：夠寬才並排，不夠自動掉回單欄 */
+  .home-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));
+    gap:0 24px;align-items:start}
   .home-col{display:block;min-width:0}
   .home-col .sec:first-child{margin-top:18px}
-  /* 這裡的欄只有內容區的一半寬，圓餅圖跟清單並排會把代號擠到 0 寬度而消失，
-     所以在這一欄裡改回上下排列，讓清單吃滿整欄。 */
-  .home-col .alloc-donut-row{flex-direction:column;align-items:center;gap:4px}
-  .home-col .alloc-donut-wrap{width:150px;height:150px;margin:2px 0 8px}
 
-  /* --- 清單：欄數由可用寬度自動決定（每欄至少 300px） --- */
-  .cardgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
-    gap:0 14px;align-items:start}
+  /* --- 清單：欄數由可用寬度自動決定（每欄至少 320px） --- */
+  .cardgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));
+    gap:0 16px;align-items:start}
   .cardgrid>*{min-width:0}
-  .cardgrid .hitem{padding:14px;gap:8px}
-  .cardgrid .hitem-spark{width:58px;margin:0 4px}
-  .cardgrid .hitem .sub{font-size:.73rem;line-height:1.35}
+  .cardgrid .hitem{padding:15px 16px;gap:9px}
+  .cardgrid .hitem-spark{width:62px;margin:0 5px}
+  .cardgrid .hitem .sub{font-size:.74rem;line-height:1.35}
 
-  /* 簡報的大盤指數並排 */
-  .idxrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0 10px}
-  /* 並排後每格只剩 1/4 寬，名稱跟漲跌放同一行會折行，改成上下兩層 */
-  .idxrow .tcard{flex-direction:column;align-items:flex-start;gap:3px;padding:12px 14px}
+  /* 簡報的大盤指數並排；每格只剩 1/4 寬，名稱跟漲跌改成上下兩層免得折行 */
+  .idxrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:0 12px}
+  .idxrow .tcard{flex-direction:column;align-items:flex-start;gap:4px;padding:14px 16px}
 
   /* --- 個股詳細頁：數據格排密一點，不要一格一個小數字 --- */
-  .statgrid{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
-  .statgrid.cols-3{grid-template-columns:repeat(3,minmax(0,1fr));max-width:560px}
-  .statcardwrap .grid3{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:18px 14px}
-  .detail-hero{padding:22px 26px}
-  .detail-hero-price{font-size:2.3rem}
+  .statgrid{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+  .statgrid.cols-3{grid-template-columns:repeat(3,minmax(0,1fr));max-width:580px}
+  .statcardwrap .grid3{grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:18px 16px}
+  .detail-hero{padding:26px 30px}
+  .detail-hero-price{font-size:2.5rem}
 
   /* 台股上方的總計卡不需要橫跨整個內容區 */
-  #twBody>.wcard.sm{max-width:440px}
+  #twBody>.wcard.sm{max-width:460px}
 
   /* 統計摘要：兩個數字左右並排，不要一張又寬又空的卡 */
-  .statsummary{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
-    gap:0 24px;padding:18px 22px}
+  .statsummary{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+    gap:0 26px;padding:20px 24px}
   .statsummary .row+.row{margin-top:0;padding-top:0;border-top:none;
-    border-left:1px solid var(--line);padding-left:24px}
-  .statsummary .v{font-size:1.4rem}
+    border-left:1px solid var(--line);padding-left:26px}
+  .statsummary .v{font-size:1.45rem}
 
-  /* 新增交易／加入追蹤的表單：對齊內容區、收窄 */
-  .sheet-panel{left:calc(17.5vw + 186px);right:auto;width:calc(65vw - 186px);max-width:640px}
+  /* 新增交易／加入追蹤的表單：對齊內容區 */
+  .sheet-panel{left:calc(var(--edge) + var(--rail) + var(--gap));right:var(--edge);
+    margin:0;max-width:680px;border-radius:var(--r-bubble) var(--r-bubble) 0 0}
+}
+
+/* 使用者在系統設定裡關掉動畫時，一律不要播進場動畫 */
+@media (prefers-reduced-motion:reduce){
+  .cardgrid>*,.home-top>*,.idxrow>*,.navlink.active::before{animation:none!important}
 }
