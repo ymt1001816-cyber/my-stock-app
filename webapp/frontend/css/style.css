@@ -11,7 +11,6 @@
      底色太深會跟 logo 搶視覺，清單掃起來很吵。 */
   --logo-bg:#ffffff; --logo-border:rgba(17,24,39,.09);
   --logo-sh:0 1px 3px rgba(17,24,39,.08), inset 0 0 0 1px rgba(255,255,255,.6);
-  --logo-bg-dark:#2f333c;
   --bottomnav-bg:rgba(255,255,255,.86); --bottomnav-sh:0 -8px 26px rgba(15,23,42,.10);
   --r-sm:12px; --r-md:16px; --r-lg:22px; --r-xl:26px;
   --sh-sm:0 1px 3px rgba(17,24,39,.07);
@@ -320,11 +319,11 @@ button{font-family:inherit;cursor:pointer}
 .hitem-left{display:flex;align-items:center;gap:12px;min-width:0}
 .hitem-logo{width:44px;height:44px;border-radius:50%;flex:0 0 auto;overflow:hidden;
   background:var(--logo-bg);border:1px solid var(--logo-border);box-shadow:var(--logo-sh)}
-/* 純白／很亮的 logo（APP、CEG、MRVL、AMZN、AAPL…）在白底上會完全看不見，
-   由 app.js 量測亮度後掛上這個 class，換成深色底。 */
-.logo-ondark{background:var(--logo-bg-dark)!important;
-  border-color:rgba(255,255,255,.16)!important;
-  box-shadow:0 1px 3px rgba(17,24,39,.16), inset 0 0 0 1px rgba(255,255,255,.08)!important}
+/* 單色白的 logo（APP、CEG、MRVL、LITE、AAPL、ALAB、CRWV）在白底上看不見。
+   反相之後就變成深色版本 —— Google Finance 顯示的也正是深色版（例如 AppLovin
+   是黑色三角形）。只用在飽和度接近 0 的單色 logo，彩色的反相會整個變色，
+   那幾檔（AMZN、ASML）改成由 app.js 換抓別家的深色版本。 */
+.logo-invert img{filter:invert(1)}
 .hitem-name{min-width:0}
 .hitem-name .sub{margin-top:3px;display:block}
 .hitem-right{text-align:right;flex:0 0 auto}

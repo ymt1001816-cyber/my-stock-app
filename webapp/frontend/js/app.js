@@ -64,7 +64,10 @@ const LOGO_TONE = (() => {
 })();
 let _toneCanvas = null;
 
-function computeTone(img) {
+// 有些公司在這個 CDN 上的 logo 是白的，但別家有深色版本可以換過去。
+const altLogoUrl = s => `https://assets.parqet.com/logos/symbol/${encodeURIComponent(s)}?format=png`;
+
+function measureLogo(img) {
   try {
     if (!_toneCanvas) _toneCanvas = document.createElement("canvas");
     const n = 32;
@@ -73,22 +76,43 @@ function computeTone(img) {
     ctx.clearRect(0, 0, n, n);
     ctx.drawImage(img, 0, 0, n, n);
     const d = ctx.getImageData(0, 0, n, n).data;
-    let sum = 0, cnt = 0, white = 0;
+    let total = 0, opaque = 0, visible = 0;
     for (let i = 0; i < d.length; i += 4) {
-      if (d[i + 3] < 40) continue;            // 略過透明像素
-      const l = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
-      sum += l; cnt++;
-      if (l > 225) white++;
+      total++;
+      if (d[i + 3] < 40) continue;                       // 透明像素
+      opaque++;
+      // 「夠暗、放在白底上看得見」的像素。用平均亮度判斷是不行的：很多 logo 圖
+      // 本身就帶白色背景（AAPL、ALAB、CRWV…），平均亮度會被白背景拉高，
+      // 但裡面的 logo 其實是深色、看得一清二楚。要看的是深色像素夠不夠多。
+      if (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2] < 180) visible++;
     }
-    if (!cnt) return null;
-    return (sum / cnt > 205 || white / cnt > 0.5) ? "dark" : "light";
+    if (!opaque) return null;
+    return { trans: 1 - opaque / total, visible: visible / opaque };
   } catch {
-    return null;   // 讀不到像素（跨網域被擋）就放棄，維持白底
+    return null;   // 讀不到像素（跨網域被擋）就放棄，維持原樣
   }
 }
 
-function applyTone(el, tone) {
-  if (tone === "dark") el.classList.add("logo-ondark");
+// ok     = 有足夠深色像素，白底上本來就看得見，不動
+// invert = 整張是白的、而且背景透明 → 反相就變成深色版本
+//          （Google Finance 顯示的也是深色版，例如 AppLovin 是黑色三角形）
+// alt    = 整張是白的、但圖片不透明（自帶白底）→ 反相會連背景一起翻黑變成
+//          一塊黑方塊，只能改抓別家的深色版本
+function classifyLogo(m) {
+  if (!m) return null;
+  if (m.visible >= 0.03) return "ok";
+  return m.trans > 0.2 ? "invert" : "alt";
+}
+
+function applyLogoFix(img, circle, kind, symbol, origUrl) {
+  if (kind === "invert") {
+    circle.classList.add("logo-invert");
+  } else if (kind === "alt" && !img.dataset.altTried) {
+    img.dataset.altTried = "1";
+    // 換源失敗（別家沒有這檔）就換回原本那張，不要變成空白
+    img.onerror = () => { img.onerror = null; img.src = origUrl; };
+    img.src = altLogoUrl(symbol);
+  }
 }
 
 function onLogoLoad(img, symbol, url) {
@@ -98,15 +122,15 @@ function onLogoLoad(img, symbol, url) {
   const circle = img.parentElement && img.parentElement.parentElement;
   if (!circle) return;
   const cached = LOGO_TONE[symbol];
-  if (cached) { applyTone(circle, cached); return; }
+  if (cached) { applyLogoFix(img, circle, cached, symbol, url); return; }
   const probe = new Image();
   probe.crossOrigin = "anonymous";
   probe.onload = () => {
-    const tone = computeTone(probe);
-    if (!tone) return;
-    LOGO_TONE[symbol] = tone;
+    const kind = classifyLogo(measureLogo(probe));
+    if (!kind) return;
+    LOGO_TONE[symbol] = kind;
     try { sessionStorage.setItem("logoTone", JSON.stringify(LOGO_TONE)); } catch { /* 無痕模式會擋，忽略 */ }
-    applyTone(circle, tone);
+    applyLogoFix(img, circle, kind, symbol, url);
   };
   probe.src = url;
 }
