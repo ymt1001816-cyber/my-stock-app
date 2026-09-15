@@ -10,3 +10,4 @@ streamlit_test.log
 .venv/
 .env
 .claude/
+logs/
