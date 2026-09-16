@@ -425,7 +425,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
    桌面版：分頁改成左側浮起的玻璃側邊欄，內容幾乎滿版、左右各留約 1cm。
    欄數一律用 auto-fit + minmax 由實際可用寬度決定，不寫死斷點。
    ============================================================ */
-.navlabel,.navbrand,.navkey{display:none}
+.navlabel,.navbrand{display:none}
 .home-top,.home-cols,.home-col,.cardgrid,.idxrow{display:contents}
 
 /* 卡片進場：淡入＋微微上浮＋收一點點縮放，做出「氣泡浮上來」的感覺 */
@@ -460,12 +460,6 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
   .navlink .ic svg{width:20px;height:20px}
   .navlink .ic{transition:transform .35s var(--bounce), color .25s}
   .navlabel{display:block;flex:1 1 auto;font-size:.9rem;font-weight:700;color:var(--sub);transition:color .25s}
-  /* 鍵盤快捷鍵提示（按 1–6 切分頁），淡淡地放在右邊讓人發現得到 */
-  .navkey{display:block;flex:0 0 auto;font-family:inherit;font-size:.68rem;font-weight:700;
-    color:var(--sub);opacity:.45;border:1px solid var(--line);border-radius:5px;
-    padding:1px 5px;line-height:1.4;transition:opacity .2s}
-  .navlink:hover .navkey{opacity:.8}
-  .navlink.active .navkey{opacity:.75;color:var(--accent-dk);border-color:rgba(242,148,31,.35)}
   .navlink:hover{transform:translateX(4px)}
   .navlink:hover .ic{transform:scale(1.12)}
   .navlink:active{transform:translateX(4px) scale(.97)}
@@ -531,7 +525,12 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
   .home-top .wcard.sm .wl{font-size:.74rem}
   .home-top .wcard.sm .wb{font-size:1.4rem}
   .home-top .wcard.sm .ws{font-size:.75rem}
-  .home-top .cashstrip{padding:16px 18px}
+  /* 「可用資金」「股利／財報行事曆」兩條只是入口，不是重點數字，
+     在桌面收小一點，把視覺重量讓給上面的資產總額與損益。 */
+  .home-top .cashstrip{padding:10px 15px;margin:0}
+  .home-top .cashstrip .l{font-size:.76rem}
+  .home-top .cashstrip .v{font-size:.9rem;margin-left:8px}
+  .home-top .cashstrip .arrow{font-size:1.05rem}
 
   /* 資產配置｜需要注意：夠寬才並排，不夠自動掉回單欄 */
   .home-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));

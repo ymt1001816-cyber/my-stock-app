@@ -253,9 +253,8 @@ function renderHeader(title, extraHtml = "") {
 
 function renderBottomNav(activeKey) {
   // 手機是底部橫條（只有 icon），桌面在 CSS 裡改成左側側邊欄、這時才把文字標籤顯示出來。
-  const links = NAV.map((n, i) => `<a class="navlink${n.key === activeKey ? " active" : ""}"
-    href="?nav=${n.key}"><div class="ic">${n.ic}</div><div class="navlabel">${n.label}</div>
-    <kbd class="navkey">${i + 1}</kbd></a>`).join("");
+  const links = NAV.map(n => `<a class="navlink${n.key === activeKey ? " active" : ""}"
+    href="?nav=${n.key}"><div class="ic">${n.ic}</div><div class="navlabel">${n.label}</div></a>`).join("");
   return `<div class="bottomnav"><div class="navbrand">📊 投資中心</div>${links}</div>`;
 }
 
