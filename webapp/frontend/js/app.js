@@ -253,8 +253,9 @@ function renderHeader(title, extraHtml = "") {
 
 function renderBottomNav(activeKey) {
   // 手機是底部橫條（只有 icon），桌面在 CSS 裡改成左側側邊欄、這時才把文字標籤顯示出來。
-  const links = NAV.map(n => `<a class="navlink${n.key === activeKey ? " active" : ""}"
-    href="?nav=${n.key}"><div class="ic">${n.ic}</div><div class="navlabel">${n.label}</div></a>`).join("");
+  const links = NAV.map((n, i) => `<a class="navlink${n.key === activeKey ? " active" : ""}"
+    href="?nav=${n.key}"><div class="ic">${n.ic}</div><div class="navlabel">${n.label}</div>
+    <kbd class="navkey">${i + 1}</kbd></a>`).join("");
   return `<div class="bottomnav"><div class="navbrand">📊 投資中心</div>${links}</div>`;
 }
 
@@ -446,6 +447,15 @@ function stockRowHtml(r, navKey = "hold", idx = 0, animate = false) {
   const spark = hasSpark
     ? `<div class="hitem-spark"><canvas data-spark='${esc(JSON.stringify(r.spark))}' data-spark-color="${sparkColor}"></canvas></div>`
     : "";
+  // 持股清單原本只顯示賺賠，完全看不到現價跟今日漲跌 —— 手機是沒空間，
+  // 但桌面的卡片寬得多。這一欄永遠輸出，由 CSS 決定小螢幕隱藏、寬螢幕顯示。
+  const dayColor = colorOf(r.day_pct);
+  const mid = hasPl && r.price_usd !== undefined
+    ? `<div class="hitem-mid">
+         <div class="v">${usdOnly(r.price_usd)}</div>
+         <div class="d" style="color:${dayColor}">${pctStr(r.day_pct)}</div>
+       </div>`
+    : "";
   // 一列一列淡入的動畫延遲，最多疊到 300ms 就好，清單很長也不會等太久才全部進場；
   // 只有真的剛進到這頁（animate=true）才加這個效果，重新排序/刷新不要重播。
   const delay = Math.min(idx * 28, 300);
@@ -460,6 +470,7 @@ function stockRowHtml(r, navKey = "hold", idx = 0, animate = false) {
           <div class="sub">${esc(sub)}</div>
         </div>
       </div>
+      ${mid}
       ${spark}
       <div class="hitem-right">
         ${right}
@@ -1192,9 +1203,13 @@ function rerenderStatsBody() {
     ? `<button type="button" class="btn-submit" data-seg-btn="stats-more" data-value="1">查看更多（還有 ${s.transactions.length - showN} 筆）</button>`
     : "";
 
-  const rankHtml = s.ranking.map(r => `<div class="hitem"><div style="display:flex;align-items:center;gap:10px">
+  // 從沒賣過的股票在「損益排行」裡一律是 0，排在中間把正負兩端隔開，純粹是雜訊。
+  const ranked = s.ranking.filter(r => Math.abs(r.pl_usd) >= 0.005);
+  const zeroN = s.ranking.length - ranked.length;
+  const rankHtml = ranked.map(r => `<div class="hitem"><div style="display:flex;align-items:center;gap:10px">
     ${logoWrap(r.symbol, 30, 7)}
-    <b>${esc(r.symbol)}</b></div><b style="color:${colorOf(r.pl_usd)}">${mh(r.pl_usd, true)}</b></div>`).join("");
+    <b>${esc(r.symbol)}</b></div><b style="color:${colorOf(r.pl_usd)}">${mh(r.pl_usd, true)}</b></div>`).join("")
+    + (zeroN ? `<p class="hint">（另有 ${zeroN} 檔尚未賣出過，沒有已實現損益）</p>` : "");
 
   body.innerHTML = summary +
     sec(`💳 交易明細（${s.range_count} 筆）`) + txHtml + moreBtn +
@@ -1969,6 +1984,25 @@ function bindPullRefresh() {
     }
   }, { passive: true });
 }
+
+// 鍵盤操作：手機是滑的，電腦上用鍵盤切分頁快得多。
+// 1–6 對應底下 NAV 的六個分頁，Esc 等於按左上角的返回鈕。
+document.addEventListener("keydown", e => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const t = e.target;
+  if (t && (t.isContentEditable ||
+            ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName))) return;
+  const n = Number(e.key);
+  if (Number.isInteger(n) && n >= 1 && n <= NAV.length) {
+    e.preventDefault();
+    navigateTo(`?nav=${NAV[n - 1].key}`);
+    return;
+  }
+  if (e.key === "Escape") {
+    const back = document.getElementById("backBtn");
+    if (back) { e.preventDefault(); back.click(); }
+  }
+});
 
 bindSwipeNav();
 bindPullRefresh();

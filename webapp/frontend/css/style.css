@@ -217,6 +217,9 @@ button{font-family:inherit;cursor:pointer}
 .hitem-right .nm{font-size:.94rem}
 .hitem-right .chip{font-size:.72rem}
 
+/* 持股列中間欄（現價／今日漲跌）：手機沒空間先藏起來，桌面才顯示 */
+.hitem-mid{display:none}
+
 /* 交易卡片 */
 .tcard{background:var(--card-grad);border:1px solid var(--line);border-left:4px solid var(--line);
   border-radius:var(--r-md);padding:12px 16px;margin:9px 0;
@@ -408,7 +411,7 @@ button{font-family:inherit;cursor:pointer}
    桌面版：分頁改成左側浮起的玻璃側邊欄，內容幾乎滿版、左右各留約 1cm。
    欄數一律用 auto-fit + minmax 由實際可用寬度決定，不寫死斷點。
    ============================================================ */
-.navlabel,.navbrand{display:none}
+.navlabel,.navbrand,.navkey{display:none}
 .home-top,.home-cols,.home-col,.cardgrid,.idxrow{display:contents}
 
 /* 卡片進場：淡入＋微微上浮＋收一點點縮放，做出「氣泡浮上來」的感覺 */
@@ -442,7 +445,13 @@ button{font-family:inherit;cursor:pointer}
     transition:background .25s, transform .3s var(--bounce)}
   .navlink .ic svg{width:20px;height:20px}
   .navlink .ic{transition:transform .35s var(--bounce), color .25s}
-  .navlabel{display:block;font-size:.9rem;font-weight:700;color:var(--sub);transition:color .25s}
+  .navlabel{display:block;flex:1 1 auto;font-size:.9rem;font-weight:700;color:var(--sub);transition:color .25s}
+  /* 鍵盤快捷鍵提示（按 1–6 切分頁），淡淡地放在右邊讓人發現得到 */
+  .navkey{display:block;flex:0 0 auto;font-family:inherit;font-size:.68rem;font-weight:700;
+    color:var(--sub);opacity:.45;border:1px solid var(--line);border-radius:5px;
+    padding:1px 5px;line-height:1.4;transition:opacity .2s}
+  .navlink:hover .navkey{opacity:.8}
+  .navlink.active .navkey{opacity:.75;color:var(--accent-dk);border-color:rgba(242,148,31,.35)}
   .navlink:hover{transform:translateX(4px)}
   .navlink:hover .ic{transform:scale(1.12)}
   .navlink:active{transform:translateX(4px) scale(.97)}
@@ -516,10 +525,16 @@ button{font-family:inherit;cursor:pointer}
   .home-col{display:block;min-width:0}
   .home-col .sec:first-child{margin-top:18px}
 
-  /* --- 清單：欄數由可用寬度自動決定（每欄至少 320px） --- */
-  .cardgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));
+  /* --- 清單：欄數由可用寬度自動決定 ---
+     持股列多了「現價／今日漲跌」之後內容變多，每欄至少要 420px 才排得下
+     logo＋代號＋股數佔比＋現價＋走勢圖＋損益，不然「N 股 · 佔比 X%」
+     會被擠成三行。 --- */
+  .cardgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));
     gap:0 16px;align-items:start}
   .cardgrid>*{min-width:0}
+  /* 交易明細、損益排行、行事曆、簡報卡沒有中間欄，不需要那麼寬 */
+  #statsRest .cardgrid,#calBody .cardgrid,#briefBody .cardgrid,#twBody .cardgrid{
+    grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
   .cardgrid .hitem{padding:15px 16px;gap:9px}
   .cardgrid .hitem-spark{width:62px;margin:0 5px}
   .cardgrid .hitem .sub{font-size:.74rem;line-height:1.35}
@@ -544,6 +559,11 @@ button{font-family:inherit;cursor:pointer}
   .statsummary .row+.row{margin-top:0;padding-top:0;border-top:none;
     border-left:1px solid var(--line);padding-left:26px}
   .statsummary .v{font-size:1.45rem}
+
+  /* 桌面卡片夠寬，把「現價／今日漲跌」補回清單上 */
+  .hitem-mid{display:block;flex:0 0 auto;text-align:right;min-width:74px}
+  .hitem-mid .v{font-size:.86rem;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+  .hitem-mid .d{font-size:.72rem;font-weight:700;margin-top:3px;font-variant-numeric:tabular-nums}
 
   /* 寬螢幕的圖表要更高，不然 1100px 寬配 260px 高會扁到看不出走勢 */
   :root{--chart-h:380px; --chart-h-bar:300px}
