@@ -44,11 +44,6 @@ HOLD_COLS = ["symbol", "shares", "avg_cost", "stop_price", "note"]
 WATCH_COLS = ["symbol", "target_buy", "note"]
 TW_HOLD_COLS = ["symbol", "name", "shares", "avg_cost", "accum_div"]
 
-GREEN = "#4a9a6c"
-RED = "#c26661"
-GREY = "#94907f"
-ORANGE = "#d9822b"
-
 # 單一持股佔總市值超過這個比例，就在總覽頁提醒集中度風險
 CONCENTRATION_THRESHOLD_PCT = 25
 

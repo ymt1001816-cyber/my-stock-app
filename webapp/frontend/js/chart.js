@@ -10,6 +10,14 @@ function shade(hex, percent) {
   return `#${adjust(m[1])}${adjust(m[2])}${adjust(m[3])}`;
 }
 
+// #rrggbb → rgba(r,g,b,a)，sparkline 的漸層填色要用。
+function rgba(hex, a) {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!m) return hex;
+  const [r, g, b] = [m[1], m[2], m[3]].map(c => parseInt(c, 16));
+  return `rgba(${r},${g},${b},${a})`;
+}
+
 // 淺色/深色模式的格線、座標文字、十字準線顏色不一樣，畫布是純手畫的，
 // 沒辦法用 CSS 變數，只能在畫的當下自己判斷一次系統主題。
 function chartTheme() {
@@ -33,6 +41,19 @@ function drawSparkline(canvas, values, color) {
   const pad = 2.5;
   const xAt = i => pad + (i / (values.length - 1)) * (cssW - pad * 2);
   const yAt = v => pad + (1 - (hi === lo ? 0.5 : (v - lo) / (hi - lo))) * (cssH - pad * 2);
+  // 只有一條細線的話，卡片右半邊看起來很空、視覺重量壓不住旁邊的金額。
+  // 補一層從線往下淡出的漸層填色，加末端一顆小圓點標出「現在在哪」。
+  const fill = ctx.createLinearGradient(0, 0, 0, cssH);
+  fill.addColorStop(0, rgba(color, 0.28));
+  fill.addColorStop(1, rgba(color, 0));
+  ctx.beginPath();
+  ctx.moveTo(xAt(0), cssH);
+  values.forEach((v, i) => ctx.lineTo(xAt(i), yAt(v)));
+  ctx.lineTo(xAt(values.length - 1), cssH);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+
   ctx.beginPath();
   values.forEach((v, i) => {
     const x = xAt(i), y = yAt(v);
@@ -43,6 +64,12 @@ function drawSparkline(canvas, values, color) {
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
   ctx.stroke();
+
+  const lastX = xAt(values.length - 1), lastY = yAt(values[values.length - 1]);
+  ctx.beginPath();
+  ctx.arc(lastX, lastY, 2.1, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
 }
 
 // 資產配置圓餅圖（甜甜圈）：純 canvas 畫扇形，不用任何圖表庫。

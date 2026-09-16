@@ -19,6 +19,16 @@ def _num(x):
         pass
     return x
 
+# 全站共用一套語意色，跟 webapp/frontend/css/style.css 的 --green/--red
+# 以及 app.js 的 GREEN/RED/GREY/ORANGE 對齊。以前這裡、main.py、app.js
+# 各有一套深淺不同的紅綠，同一個「漲」在不同頁面顏色不一樣。
+_GREEN = "#18a558"   # 漲／賺
+_RED = "#e0405a"     # 跌／賠
+_GREY = "#6b7280"    # 中性
+_ORANGE = "#d9822b"  # 注意／偏弱
+_BLUE = "#2f7cc4"    # 資訊／加碼訊號
+
+
 REC_ZH = {
     "strong_buy": "強力買進", "buy": "買進", "hold": "持有",
     "sell": "賣出", "strong_sell": "強力賣出", "underperform": "劣於大盤",
@@ -95,15 +105,15 @@ def analyze_holding(q: dict, shares: float, avg_cost: float,
 
     # 綜合判定
     if hit_stop or pl_pct <= -stop_pct:
-        label, emoji, color = "考慮停損", "🔴", "#e03131"
+        label, emoji, color = "考慮停損", "🔴", _RED
     elif score >= 3:
-        label, emoji, color = "續抱 / 可加碼", "🔵", "#1971c2"
+        label, emoji, color = "續抱 / 可加碼", "🔵", _BLUE
     elif score >= 1:
-        label, emoji, color = "續抱", "🟢", "#2f9e44"
+        label, emoji, color = "續抱", "🟢", _GREEN
     elif score <= -2:
-        label, emoji, color = "偏弱 / 考慮減碼", "🟠", "#e8590c"
+        label, emoji, color = "偏弱 / 考慮減碼", "🟠", _ORANGE
     else:
-        label, emoji, color = "中性觀察", "⚪", "#868e96"
+        label, emoji, color = "中性觀察", "⚪", _GREY
 
     return {
         "label": label, "emoji": emoji, "color": color, "score": score,
@@ -143,23 +153,19 @@ def analyze_light(price, ma50, ma200, pl_pct, stop_price=None, dca=False) -> dic
         reasons.append(f"🛑 已跌破你設定的停損價 ${stop_price:,.2f}")
 
     if hit or pl_pct <= -15:
-        r = {"label": "考慮停損", "emoji": "🔴", "color": "#c26661"}
+        r = {"label": "考慮停損", "emoji": "🔴", "color": _RED}
     elif dca:
-        r = {"label": "定期定額·長期持有", "emoji": "📈", "color": "#4f7fa3"}
+        r = {"label": "定期定額·長期持有", "emoji": "📈", "color": _BLUE}
     elif pl_pct >= 20:
-        r = {"label": "可留意獲利了結", "emoji": "🎯", "color": "#2f7d54"}
+        r = {"label": "可留意獲利了結", "emoji": "🎯", "color": _GREEN}
     elif ma200 and price < ma200:
-        r = {"label": "偏弱觀察", "emoji": "🟠", "color": "#bd8a44"}
+        r = {"label": "偏弱觀察", "emoji": "🟠", "color": _ORANGE}
     elif ma50 and ma200 and price > ma50 > ma200:
-        r = {"label": "續抱", "emoji": "🟢", "color": "#4a9a6c"}
+        r = {"label": "續抱", "emoji": "🟢", "color": _GREEN}
     else:
-        r = {"label": "中性觀察", "emoji": "⚪", "color": "#94907f"}
+        r = {"label": "中性觀察", "emoji": "⚪", "color": _GREY}
     r["reasons"] = reasons or ["ℹ️ 目前無明顯訊號，維持觀察"]
     return r
-
-
-_GREEN = "#3f9668"
-_RED = "#c1685f"
 
 
 def _sec(title):
@@ -223,7 +229,7 @@ def generate_briefing(rows, usdtwd=0, watch_syms=None) -> str:
     if spx:
         mood = ("偏多、風險偏好回升" if spx["pct"] > 0.3
                 else "偏空、避險情緒升溫" if spx["pct"] < -0.3 else "小幅震盪、方向不明")
-        out.append(f"<div style='color:#8a8983;font-size:.86rem;margin:0 0 8px 2px'>"
+        out.append(f"<div style='color:#6b7280;font-size:.86rem;margin:0 0 8px 2px'>"
                    f"📌 整體{mood}。</div>")
     if mnews:
         news_cards = []
@@ -290,7 +296,7 @@ def generate_briefing(rows, usdtwd=0, watch_syms=None) -> str:
                  f"&#36;{pl:+,.0f}（{plpct:+.1f}%）</span>")
         out.append(_bcard(title, sub, pl_cc))
 
-    out.append("<div style='color:#8a8983;font-size:.8rem;margin-top:4px'>"
+    out.append("<div style='color:#6b7280;font-size:.8rem;margin-top:4px'>"
                "※ 依即時數據與新聞自動整理，非投資建議。</div>")
     return "".join(out)
 
@@ -329,11 +335,11 @@ def analyze_watch(q: dict, target_buy, rsi_val) -> dict:
         score -= 1; reasons.append(f"🟠 RSI {rsi_val:.0f} 過熱，別追高")
 
     if score >= 3:
-        label, emoji, color = "可考慮進場", "🟢", "#2f9e44"
+        label, emoji, color = "可考慮進場", "🟢", _GREEN
     elif score >= 1:
-        label, emoji, color = "接近，續觀察", "🟡", "#f08c00"
+        label, emoji, color = "接近，續觀察", "🟡", _ORANGE
     else:
-        label, emoji, color = "再等等", "⚪", "#868e96"
+        label, emoji, color = "再等等", "⚪", _GREY
 
     return {"label": label, "emoji": emoji, "color": color, "score": score,
             "reasons": reasons or ["ℹ️ 無明顯訊號。"], "upside": upside,

@@ -461,8 +461,12 @@ function stockRowHtml(r, navKey = "hold", idx = 0, animate = false) {
   const delay = Math.min(idx * 28, 300);
   const enterCls = animate ? " row-enter" : "";
   const enterStyle = animate ? ` style="animation-delay:${delay}ms"` : "";
+  // 左側細色條：22 檔一次排開時，用顏色掃比讀數字快得多。
+  // 持股看累計賺賠，追蹤清單沒有成本、看當日漲跌。
+  const toneVal = hasPl ? r.pl_usd : r.day_pct;
+  const tone = !toneVal ? "" : (toneVal > 0 ? " tone-up" : " tone-down");
   return `<a class="hlink${enterCls}"${enterStyle} href="?nav=${navKey}&sym=${encodeURIComponent(r.symbol)}">
-    <div class="hitem">
+    <div class="hitem${tone}">
       <div class="hitem-left">
         <div class="hitem-logo">${logoImg(r.symbol)}</div>
         <div class="hitem-name">

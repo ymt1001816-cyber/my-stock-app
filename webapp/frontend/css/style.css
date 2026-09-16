@@ -2,8 +2,8 @@
 
 :root{
   --ink:#1e1e20; --sub:#6b7280; --line:rgba(17,24,39,.08);
-  --card:#ffffff; --card2:#f3f4f6;
-  --card-grad:linear-gradient(180deg, #ffffff 0%, #fbfbfd 100%);
+  --card:#ffffff; --card2:#f4f2ee;
+  --card-grad:linear-gradient(180deg, #ffffff 0%, #fdfcfa 100%);
   --card-hl:inset 0 1px 0 rgba(255,255,255,.8);
   --accent:#f2941f; --accent-dk:#c96e0a; --accent-lt:#fbdca3; --accent-text:var(--accent-dk);
   --green:#18a558; --red:#e0405a;
@@ -31,11 +31,15 @@
 }
 .pop-anim{animation:btn-pop .38s var(--bounce)}
 *{box-sizing:border-box}
-html{background:#eef0f3;overscroll-behavior-y:none}
+html{background:#f2f0ec;overscroll-behavior-y:none}
+/* 原本是 #eef0f3 冷灰配兩層白色漸層，白卡片疊上去之後整片看起來灰灰的、沒有生氣。
+   改成偏暖的底色，再鋪三層很淡的橘／藍／綠光暈，白卡片浮在上面才有層次。
+   飽和度刻意壓得很低（0.2 上下），是氛圍而不是花俏。 */
 body{margin:0;background:
-  radial-gradient(1100px 520px at 12% -8%, #ffffff 0%, transparent 60%),
-  radial-gradient(900px 480px at 100% 0%, #f7f8fa 0%, transparent 55%),
-  #eef0f3;
+  radial-gradient(1000px 560px at 6% -12%, rgba(255,201,134,.32) 0%, transparent 58%),
+  radial-gradient(880px 520px at 99% -6%, rgba(146,186,244,.24) 0%, transparent 56%),
+  radial-gradient(820px 640px at 64% 106%, rgba(152,223,186,.22) 0%, transparent 58%),
+  #f2f0ec;
   overscroll-behavior-y:none;
   font-family:'Noto Sans TC',-apple-system,'Segoe UI','PingFang TC','Microsoft JhengHei',sans-serif;
   font-size:15px;color:var(--ink)}
@@ -48,6 +52,9 @@ h1{font-size:1.42rem;font-weight:800;letter-spacing:.1px;margin:0}
 hr{border:none;border-top:1px solid var(--line)}
 a{color:inherit}
 button{font-family:inherit;cursor:pointer}
+/* 用鍵盤（Tab／1–6）操作時要看得出焦點在哪；滑鼠點擊不會觸發 :focus-visible */
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
+  outline:2px solid var(--accent);outline-offset:2px;border-radius:10px}
 
 /* 子頁頁首：返回鈕與標題同一行 */
 .subheader{display:flex;align-items:center;gap:12px;margin-bottom:14px}
@@ -96,19 +103,21 @@ button{font-family:inherit;cursor:pointer}
 /* 淨資產：用品牌橘色調的淺色漸層卡當視覺焦點，跟底下白色卡片群拉出層次，
    但不要用太深/太黑的顏色（跟頁面其他地方反差太大，會顯得突兀）。 */
 .hero-card{position:relative;overflow:hidden;padding:20px 20px 22px;margin:4px 0 14px;
-  border-radius:var(--r-xl);background:linear-gradient(135deg,#fff3e2 0%,#ffdfab 100%);
-  border:1px solid rgba(201,110,10,.22);
-  box-shadow:var(--sh-lg);transition:transform .2s var(--bounce)}
+  border-radius:var(--r-xl);background:linear-gradient(135deg,#fffaf2 0%,#fceeda 100%);
+  border:1px solid rgba(201,110,10,.13);
+  box-shadow:var(--sh-md);transition:transform .2s var(--bounce)}
 .hero-link:active .hero-card{transform:scale(.98)}
 .hero-card::after{content:'';position:absolute;top:-45%;right:-15%;width:220px;height:220px;
-  background:radial-gradient(circle, rgba(242,148,31,.25), transparent 70%);pointer-events:none}
+  background:radial-gradient(circle, rgba(242,148,31,.16), transparent 70%);pointer-events:none}
 .hero-card .wl{position:relative;font-size:.85rem;font-weight:700;color:var(--accent-dk);letter-spacing:.2px;
   display:flex;justify-content:space-between;align-items:center}
 .hero-card .wl .arrow{font-size:1.2rem;font-weight:700;color:var(--accent-dk)}
 .hero-card .wb{position:relative;font-size:2.15rem;font-weight:800;margin:8px 0 4px;letter-spacing:.2px;
-  background:linear-gradient(135deg, #4a2e08 20%, #7a4d14 100%);
+  /* 原本是咖啡色系＋飽和橘底，整張卡太搶戲。改成中性深色數字，
+     只留標籤那一行是橘的當視覺提示。 */
+  background:linear-gradient(135deg, #2b2c30 20%, #54565e 100%);
   -webkit-background-clip:text;background-clip:text;color:transparent}
-.hero-card .ws{position:relative;font-size:.85rem;color:#8a6633;font-weight:600}
+.hero-card .ws{position:relative;font-size:.85rem;color:#8d8f95;font-weight:600}
 
 /* 個股詳細頁最上面的價格區塊：跟其他卡片一樣抬升起來，不要用首頁那個橘色（那個顏色
    專門代表「資產總額」），維持中性色但要有明顯的立體感。 */
@@ -216,6 +225,11 @@ button{font-family:inherit;cursor:pointer}
 /* 右邊金額/百分比比左邊代號名稱再縮小一點，看起來更平衡 */
 .hitem-right .nm{font-size:.94rem}
 .hitem-right .chip{font-size:.72rem}
+
+/* 持股／追蹤列左側的細色條：一次排開 22 檔時，用顏色掃比讀數字快。
+   持股看累計賺賠，追蹤清單看當日漲跌（由 app.js 掛 tone-up / tone-down）。 */
+.hitem.tone-up{border-left:3px solid rgba(24,165,88,.5)}
+.hitem.tone-down{border-left:3px solid rgba(224,64,90,.45)}
 
 /* 持股列中間欄（現價／今日漲跌）：手機沒空間先藏起來，桌面才顯示 */
 .hitem-mid{display:none}
@@ -511,7 +525,7 @@ button{font-family:inherit;cursor:pointer}
   .home-top>*:nth-child(5){grid-column:1/-1;grid-row:4;margin-top:4px;animation:none}
   .home-top .hero-card{height:100%;display:flex;flex-direction:column;justify-content:center;
     padding:30px 30px;margin:0}
-  .home-top .hero-card .wb{font-size:2.9rem}
+  .home-top .hero-card .wb{font-size:2.3rem}
   .home-top .hero-card .wl,.home-top .hero-card .ws{font-size:.94rem}
   .home-top .wcard.sm{min-height:96px;padding:16px 18px}
   .home-top .wcard.sm .wl{font-size:.74rem}
@@ -559,6 +573,26 @@ button{font-family:inherit;cursor:pointer}
   .statsummary .row+.row{margin-top:0;padding-top:0;border-top:none;
     border-left:1px solid var(--line);padding-left:26px}
   .statsummary .v{font-size:1.45rem}
+
+  /* 背景光暈固定住，捲動時像一張穩定的桌面，而不是跟著內容跑的貼圖。
+     只在桌面套用：iOS Safari 的 background-attachment:fixed 有已知問題。 */
+  body{background-attachment:fixed,fixed,fixed,scroll}
+
+  /* 區塊標題右邊拉一條淡出的細線，版面比較有章法 */
+  .sec{display:flex;align-items:center;gap:14px}
+  .sec::after{content:'';flex:1 1 auto;height:1px;
+    background:linear-gradient(90deg,var(--line),transparent)}
+
+  /* 細捲軸，比系統預設的粗捲軸乾淨 */
+  ::-webkit-scrollbar{width:11px;height:11px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:rgba(17,24,39,.16);border-radius:99px;
+    border:3px solid transparent;background-clip:content-box}
+  ::-webkit-scrollbar-thumb:hover{background:rgba(17,24,39,.28);background-clip:content-box}
+
+  /* 損益金額在桌面放大一級，數字是這個 App 的主角 */
+  .hitem-right .nm{font-size:1.02rem}
+  .hitem-right .chip{font-size:.75rem}
 
   /* 桌面卡片夠寬，把「現價／今日漲跌」補回清單上 */
   .hitem-mid{display:block;flex:0 0 auto;text-align:right;min-width:74px}
