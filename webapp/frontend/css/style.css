@@ -17,6 +17,8 @@
   --sh-md:0 4px 14px rgba(17,24,39,.10), 0 1px 3px rgba(17,24,39,.06);
   --sh-lg:0 16px 36px -10px rgba(15,23,42,.20), 0 2px 8px rgba(15,23,42,.08);
   --bounce:cubic-bezier(.34,1.56,.64,1);
+  /* 圖表高度（chart.js 讀這兩個值） */
+  --chart-h:260px; --chart-h-bar:220px;
 }
 /* 按鈕/可點擊列按下去的彈跳動態感：手機上 CSS :active 觸發時機常常不穩定、感覺不到，
    改用 JS 在按下當下強制觸發這個 keyframe（見 app.js 的 pointerdown 監聽），
@@ -46,6 +48,11 @@ h1{font-size:1.42rem;font-weight:800;letter-spacing:.1px;margin:0}
 hr{border:none;border-top:1px solid var(--line)}
 a{color:inherit}
 button{font-family:inherit;cursor:pointer}
+
+/* 子頁頁首：返回鈕與標題同一行 */
+.subheader{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.subheader .btn-back{margin-bottom:0}
+.subheader h1{min-width:0}
 
 /* 標題列：標題（伸縮）＋幣別切換／額外按鈕，同一行不換行 */
 .pageheader{display:flex;align-items:center;gap:6px;width:100%;margin-bottom:14px}
@@ -537,6 +544,20 @@ button{font-family:inherit;cursor:pointer}
   .statsummary .row+.row{margin-top:0;padding-top:0;border-top:none;
     border-left:1px solid var(--line);padding-left:26px}
   .statsummary .v{font-size:1.45rem}
+
+  /* 寬螢幕的圖表要更高，不然 1100px 寬配 260px 高會扁到看不出走勢 */
+  :root{--chart-h:380px; --chart-h-bar:300px}
+
+  /* 頁首固定在上方：清單很長（持股 22 檔、統計 150 筆、行事曆 39 筆）時
+     往下捲還看得到現在在哪一頁、幣別切換也隨手可按。 */
+  .pageheader,.subheader{position:sticky;top:0;z-index:60;
+    padding:10px 0;margin-bottom:10px;
+    background:rgba(238,240,243,.85);
+    backdrop-filter:blur(12px) saturate(1.2);-webkit-backdrop-filter:blur(12px) saturate(1.2)}
+
+  /* 送出鈕不要橫跨整個內容區（1100px 寬的按鈕很怪）；底部滑出表單裡維持滿寬 */
+  .btn-submit{max-width:340px;margin-left:auto;margin-right:auto;display:block}
+  .sheet-panel .btn-submit{max-width:none}
 
   /* 新增交易／加入追蹤的表單：對齊內容區 */
   .sheet-panel{left:calc(var(--edge) + var(--rail) + var(--gap));right:var(--edge);

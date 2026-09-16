@@ -94,7 +94,10 @@ function drawLineChart(container, points, { color, fillColor, moneyFmt }) {
   container.appendChild(tooltip);
 
   const cssW = container.clientWidth || 320;
-  const cssH = 260;
+  // 圖表高度交給 CSS 變數決定：桌面版寬度是手機的三倍多，沿用手機的高度
+  // 會變成又扁又長的比例，看不出走勢。
+  const cssH = Math.round(parseFloat(
+    getComputedStyle(container).getPropertyValue("--chart-h"))) || 260;
   canvas.style.width = cssW + "px";
   canvas.style.height = cssH + "px";
   canvas.width = cssW * dpr;
@@ -109,7 +112,8 @@ function drawLineChart(container, points, { color, fillColor, moneyFmt }) {
 
   // 右側 y 軸數字寬度不固定（USD 短、台幣動輒 7 位數字長很多），先用實際字型量出
   // 最寬的標籤再決定要留多少邊界，不然數字長的時候會被畫到 canvas 外面直接被裁掉。
-  const axisFont = "11px -apple-system,'Segoe UI',sans-serif";
+  // 軸標籤字級跟著畫布寬度走：桌面版 1100px 寬的圖配 11px 太小看不清
+  const axisFont = `${cssW > 700 ? 12.5 : 11}px -apple-system,'Segoe UI',sans-serif`;
   const gridN = 4;
   ctx.font = axisFont;
   let maxLabelW = 0;
@@ -249,7 +253,10 @@ function drawBarChart(container, points, { posColor, negColor, moneyFmt }) {
   container.appendChild(tooltip);
 
   const cssW = container.clientWidth || 320;
-  const cssH = 220;
+  // 圖表高度交給 CSS 變數決定：桌面版寬度是手機的三倍多，沿用手機的高度
+  // 會變成又扁又長的比例，看不出走勢。
+  const cssH = Math.round(parseFloat(
+    getComputedStyle(container).getPropertyValue("--chart-h-bar"))) || 220;
   canvas.style.width = cssW + "px";
   canvas.style.height = cssH + "px";
   canvas.width = cssW * dpr;
@@ -265,7 +272,8 @@ function drawBarChart(container, points, { posColor, negColor, moneyFmt }) {
 
   // 跟 drawLineChart 同樣的問題：台幣金額字串比美金長很多，固定 46px 會被裁掉，
   // 先用實際字型量出最寬的標籤再決定要留多少邊界。
-  const axisFont = "11px -apple-system,'Segoe UI',sans-serif";
+  // 軸標籤字級跟著畫布寬度走：桌面版 1100px 寬的圖配 11px 太小看不清
+  const axisFont = `${cssW > 700 ? 12.5 : 11}px -apple-system,'Segoe UI',sans-serif`;
   const gridN = 4;
   ctx.font = axisFont;
   let maxLabelW = 0;

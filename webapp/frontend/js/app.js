@@ -258,6 +258,12 @@ function renderBottomNav(activeKey) {
   return `<div class="bottomnav"><div class="navbrand">📊 投資中心</div>${links}</div>`;
 }
 
+// 子頁（走勢、行事曆、可用資金、功能介紹）的頁首：返回鈕跟標題排在同一行。
+// 原本是上下兩個 block，在電腦上白白吃掉一整列高度。
+function subHeader(title) {
+  return `<div class="subheader"><button class="btn-back" id="backBtn">←</button><h1>${title}</h1></div>`;
+}
+
 function bindHeaderEvents() {
   const btn = document.getElementById("curBtn");
   if (!btn) return;
@@ -1297,9 +1303,8 @@ let trendGran = "日";
 
 async function renderTrend() {
   const app = document.getElementById("app");
-  app.innerHTML = `<button class="btn-back" id="backBtn">←</button>
-    <h1>📈 資產走勢</h1>
-    <div id="trendBody">${skeletonWithHint(240, "計算歷史市值中…（約 10-20 秒）")}</div>` +
+  app.innerHTML = subHeader("📈 資產走勢") +
+    `<div id="trendBody">${skeletonWithHint(240, "計算歷史市值中…（約 10-20 秒）")}</div>` +
     renderBottomNav("home");
   document.getElementById("backBtn").addEventListener("click", () => navigateTo("?nav=home"));
 
@@ -1350,9 +1355,8 @@ onSeg("trendgran", async val => {
 // ------------------------------------------------------------------
 async function renderCash() {
   const app = document.getElementById("app");
-  app.innerHTML = `<button class="btn-back" id="backBtn">←</button>
-    <h1>💵 設定可用資金</h1>
-    <div class="form-field" style="margin-top:14px">
+  app.innerHTML = subHeader("💵 設定可用資金") +
+    `<div class="form-field" style="margin-top:14px">
       <label>可用資金（USD，可買入的現金）</label>
       <input type="number" id="f_cash" min="0" step="100" value="${state.cash}">
     </div>
@@ -1391,9 +1395,8 @@ async function renderAbout() {
     </div>
     <div class="sub" style="line-height:1.5">${esc(s.desc)}</div>
   </div>`).join("");
-  app.innerHTML = `<button class="btn-back" id="backBtn">←</button>
-    <h1>ℹ️ 功能介紹</h1>
-    <p class="hint" style="margin:8px 2px 16px">這個 App 目前有這些功能，逛一輪就知道能幫你做什麼。</p>
+  app.innerHTML = subHeader("ℹ️ 功能介紹") +
+    `<p class="hint" style="margin:8px 2px 16px">這個 App 目前有這些功能，逛一輪就知道能幫你做什麼。</p>
     ${cards}
     <p class="hint" style="text-align:center;margin-top:16px">※ 所有判斷都是機械式規則計算，不構成投資建議。</p>` +
     renderBottomNav("home");
@@ -1405,9 +1408,8 @@ async function renderAbout() {
 // ------------------------------------------------------------------
 async function renderCalendar() {
   const app = document.getElementById("app");
-  app.innerHTML = `<button class="btn-back" id="backBtn">←</button>
-    <h1>📅 股利／財報行事曆</h1>
-    <div id="calBody">${skeletonList()}</div>` + renderBottomNav("home");
+  app.innerHTML = subHeader("📅 股利／財報行事曆") +
+    `<div id="calBody">${skeletonList()}</div>` + renderBottomNav("home");
   document.getElementById("backBtn").addEventListener("click", () => navigateTo("?nav=home"));
 
   const c = await api("/calendar");
