@@ -1,17 +1,89 @@
 # -*- coding: utf-8 -*-
 """行情資料層：所有 Yahoo Finance 的抓取都集中在這裡，並加上快取。"""
+import functools
+import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 import pandas as pd
 import requests
-import streamlit as st
 
 try:
     import yfinance as yf
     HAS_YF = True
 except Exception:
     HAS_YF = False
+
+
+# 快取「未命中」的哨兵。不能用 None 當未命中，因為被快取的值本身就可能是 None。
+_MISS = object()
+
+
+def cache_data(ttl: float = 600, show_spinner: bool = False, maxsize: int = 512):
+    """帶存活時間的快取裝飾器。
+
+    原本這裡用的是 streamlit 的 @st.cache_data —— 但這個專案從來沒有跑過
+    Streamlit 伺服器，整包 streamlit（連帶 pyarrow / pydeck / altair 近 200MB）
+    就只為了這一個裝飾器而存在，而且在非 Streamlit 環境下每次呼叫都會噴
+    「No runtime found」警告。行為刻意對齊原本的用法：
+
+      * 以 (args, kwargs) 當 key，超過 ttl 秒就重新計算
+      * 例外不寫入快取 —— 失敗的下一次呼叫必須真的重新問一次，不能卡在壞結果
+        裡直到快取過期（見 _bounded 的註解，之前就是這樣讓 VOO 顯示 -100%
+        整整卡了十分鐘）
+      * 執行緒安全：這個 App 到處都用 ThreadPoolExecutor 平行抓資料
+      * 不複製回傳值（st.cache_data 會複製）。已確認所有呼叫端都只讀不寫，
+        而且複製 DataFrame 會讓 22 檔的 sparkline 每次都多付一次複製成本。
+
+    show_spinner 只是為了讓呼叫端維持原本的寫法，這裡沒有作用。
+    """
+    def decorator(fn):
+        store = {}          # key -> (寫入時間, 值)
+        keylocks = {}       # key -> Lock，讓同一個 key 只有一條執行緒真的去抓
+        guard = threading.Lock()
+
+        def _fresh(key, now):
+            hit = store.get(key)
+            return hit[1] if (hit is not None and now - hit[0] < ttl) else _MISS
+
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            key = (args, tuple(sorted(kwargs.items())))
+            now = time.monotonic()
+            with guard:
+                val = _fresh(key, now)
+                if val is not _MISS:
+                    return val
+                keylock = keylocks.setdefault(key, threading.Lock())
+
+            # 同一個 key 只放一條執行緒進去抓，其他的排隊等它抓完直接吃快取。
+            # 這個 App 常常 22 檔一起平行抓，少了這層的話同一檔可能被同時打好幾次，
+            # 而 Yahoo 對短時間內的重複請求會直接擋掉。
+            with keylock:
+                now = time.monotonic()
+                with guard:
+                    val = _fresh(key, now)
+                    if val is not _MISS:
+                        return val
+                value = fn(*args, **kwargs)      # 失敗就讓例外往外丟，不進快取
+                with guard:
+                    store[key] = (now, value)
+                    if len(store) > maxsize:      # 超量就順手把過期的清掉
+                        for k, (stamp, _) in list(store.items()):
+                            if now - stamp >= ttl:
+                                store.pop(k, None)
+                                keylocks.pop(k, None)
+                return value
+
+        def _clear():
+            with guard:
+                store.clear()
+                keylocks.clear()
+
+        wrapper.cache_clear = _clear
+        return wrapper
+    return decorator
 
 # Yahoo Finance 有時候對雲端主機（Render 這類）的 IP 回應得很慢甚至掛住不回應，
 # 一律用這個 pool 包一層時間上限，避免單一卡住的請求拖垮整個 App（其他請求
@@ -116,7 +188,7 @@ def _empty_quote(symbol):
     }
 
 
-@st.cache_data(ttl=600, show_spinner=False)
+@cache_data(ttl=600, show_spinner=False)
 def _get_fastinfo_for_quote_cached(symbol: str) -> dict:
     # 只挑需要的欄位，絕對不要 dict(fast_info) 整包轉換——理由見 _fast_info_subset。
     # marketCap 改從下面的 info 拿（反正 info 本來就會抓），不要透過 fast_info，
@@ -132,7 +204,7 @@ def _get_fastinfo_for_quote_cached(symbol: str) -> dict:
     return fi
 
 
-@st.cache_data(ttl=600, show_spinner=False)
+@cache_data(ttl=600, show_spinner=False)
 def _get_info_for_quote_cached(symbol: str) -> dict:
     # 跟 fast_info 一樣，故意不接 except 就回傳 {}：.info 這個重的端點在 Render
     # 上偶爾會比較慢或被暫時擋掉，之前是抓失敗也快取一個空字典 10 分鐘，害分析師
@@ -144,7 +216,7 @@ def _get_info_for_quote_cached(symbol: str) -> dict:
     return info
 
 
-@st.cache_data(ttl=600, show_spinner=False)
+@cache_data(ttl=600, show_spinner=False)
 def _get_calendar_for_quote_cached(symbol: str) -> dict:
     try:
         return yf.Ticker(symbol).calendar or {}
@@ -224,7 +296,7 @@ def _get_quote_cached(symbol: str) -> dict:
 _EMPTY_CAL = {"earnings_date": None, "ex_div_date": None, "div_date": None}
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@cache_data(ttl=3600, show_spinner=False)
 def _get_calendar_cached(symbol: str) -> dict:
     """只抓財報／除息／配息日期，給行事曆頁用。
     行事曆用不到現價/基本面，故意不叫 get_quote：那個為了現價會多打
@@ -291,7 +363,7 @@ def _fast_info_subset(symbol, keys):
     return {k: fi.get(k) for k in keys}
 
 
-@st.cache_data(ttl=600, show_spinner=False)  # 跟 get_quote 同一個快取時間，清單跟詳細頁才不會分別顯示不同時間點的價格
+@cache_data(ttl=600, show_spinner=False)  # 跟 get_quote 同一個快取時間，清單跟詳細頁才不會分別顯示不同時間點的價格
 def _get_light_cached(symbol: str) -> dict:
     fi = _bounded(lambda: _fast_info_subset(symbol, _LIGHT_KEYS))
     if not fi.get("lastPrice"):
@@ -319,7 +391,7 @@ def get_light(symbol: str) -> dict:
         return _empty_light(symbol)
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+@cache_data(ttl=300, show_spinner=False)
 def get_indices() -> list:
     """美股大盤指數即時漲跌。"""
     if not HAS_YF:
@@ -342,7 +414,7 @@ def get_indices() -> list:
     return out
 
 
-@st.cache_data(ttl=900, show_spinner=False)
+@cache_data(ttl=900, show_spinner=False)
 def get_market_news(limit: int = 5) -> list:
     """美股大盤相關新聞（用 S&P500 / SPY）。"""
     news = get_news("^GSPC", limit)
@@ -351,7 +423,7 @@ def get_market_news(limit: int = 5) -> list:
     return news
 
 
-@st.cache_data(ttl=900, show_spinner=False)
+@cache_data(ttl=900, show_spinner=False)
 def portfolio_value_series(holdings_tuple, period: str, interval: str) -> pd.Series:
     """把每檔『股數 × 歷史收盤』相加 → 投資組合歷史總市值(USD) 時間序列。
        holdings_tuple = ((symbol, shares), ...)（tuple 方便快取）。"""
@@ -379,7 +451,7 @@ def portfolio_value_series(holdings_tuple, period: str, interval: str) -> pd.Ser
     return df.sum(axis=1, min_count=1).dropna()
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+@cache_data(ttl=300, show_spinner=False)
 def _get_chart_cached(symbol: str, period: str, interval: str) -> pd.DataFrame:
     h = _bounded(lambda: yf.Ticker(symbol).history(period=period, interval=interval), timeout=8)
     if h is None or h.empty:
@@ -397,7 +469,7 @@ def get_chart(symbol: str, period: str = "6mo", interval: str = "1d") -> pd.Data
         return pd.DataFrame()
 
 
-@st.cache_data(ttl=86400, show_spinner=False)
+@cache_data(ttl=86400, show_spinner=False)
 def _translate_zh(text: str) -> str:
     """免費、免金鑰的 Google 翻譯（英文新聞標題→中文）。失敗就照原文顯示。"""
     if not text or not text.strip():
@@ -414,7 +486,7 @@ def _translate_zh(text: str) -> str:
         return text
 
 
-@st.cache_data(ttl=900, show_spinner=False)
+@cache_data(ttl=900, show_spinner=False)
 def get_news(symbol: str, limit: int = 4) -> list:
     """抓新聞標題並翻成中文（不抓冗長摘要，標題就夠）。翻譯平行處理加快載入。"""
     if not HAS_YF:
@@ -446,7 +518,7 @@ def get_news(symbol: str, limit: int = 4) -> list:
     return items
 
 
-@st.cache_data(ttl=600, show_spinner=False)
+@cache_data(ttl=600, show_spinner=False)
 def _get_usdtwd_cached() -> float:
     h = _bounded(lambda: yf.Ticker("TWD=X").history(period="5d"))
     if h is None or h.empty:
