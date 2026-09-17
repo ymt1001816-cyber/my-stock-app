@@ -1702,14 +1702,6 @@ onSeg("tw-submit", val => submitTw(val));
 // ------------------------------------------------------------------
 // 尚未搬遷完成的頁面：先顯示佔位訊息
 // ------------------------------------------------------------------
-function renderPlaceholder(key, title) {
-  const app = document.getElementById("app");
-  app.innerHTML = renderHeader(title) +
-    `<p style="color:var(--sub)">這頁還在搬遷中，敬請期待。</p>` +
-    renderBottomNav(key);
-  bindHeaderEvents();
-}
-
 // ------------------------------------------------------------------
 // 路由
 // ------------------------------------------------------------------

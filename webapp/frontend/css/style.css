@@ -159,9 +159,6 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
 /* 資產配置卡片 */
 .alloccard{background:var(--card-grad);border:1px solid var(--line);border-radius:var(--r-lg);
   padding:16px 18px 8px;box-shadow:var(--sh-md), var(--card-hl);margin:6px 0 4px}
-.allocbar{display:flex;height:15px;border-radius:99px;overflow:hidden;margin:2px 0 12px;
-  box-shadow:inset 0 0 0 1px rgba(0,0,0,.05), var(--sh-sm)}
-.allocbar span{height:100%}
 /* 手機寬度先直排（圓餅圖在上、清單在下），不然圖表跟清單擠在同一行，
    清單那欄會窄到代號跟金額被迫換行、很難看；夠寬（平板/桌面）才並排。 */
 .alloc-donut-row{display:flex;flex-direction:column;align-items:center;gap:4px;margin-bottom:6px}
@@ -357,7 +354,6 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
   box-shadow:0 3px 10px rgba(201,110,10,.35), var(--card-hl)}
 
 /* 持股列表：一列可點進去看詳細 */
-.hitem-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .hitem-left{display:flex;align-items:center;gap:12px;min-width:0}
 .hitem-logo{width:44px;height:44px;border-radius:50%;flex:0 0 auto;overflow:hidden;
   background:var(--logo-bg);border:1px solid var(--logo-border);box-shadow:var(--logo-sh)}
@@ -430,7 +426,6 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
 @keyframes skel-shimmer{0%{background-position:120% 0}100%{background-position:-20% 0}}
 .skel-row{height:64px;margin-bottom:8px}
 .skel-block{width:100%}
-.skel-line{height:14px;border-radius:7px}
 
 /* ============================================================
    桌面版排版（≥1024px）

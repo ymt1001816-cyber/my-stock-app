@@ -36,10 +36,6 @@ REC_ZH = {
 }
 
 
-def _fmt_pct(x):
-    return f"{x:+.1f}%" if x is not None else "—"
-
-
 def analyze_holding(q: dict, shares: float, avg_cost: float,
                     stop_price: float, rsi_val, stop_pct: float = 15.0,
                     macd_val=None, vol_ratio=None) -> dict:

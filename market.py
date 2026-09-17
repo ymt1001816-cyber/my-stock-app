@@ -87,20 +87,6 @@ def biz_zh(symbol, industry=""):
     return BIZ_ZH.get(symbol.upper(), industry or "—")
 
 
-# 公司官網網域（給 Clearbit logo 用）；沒對應的就不顯示 logo（避免破圖）
-DOMAIN = {
-    "AMZN": "amazon.com", "APP": "applovin.com", "ASML": "asml.com",
-    "AVGO": "broadcom.com", "CRWV": "coreweave.com", "INTC": "intel.com",
-    "LITE": "lumentum.com", "META": "meta.com", "MU": "micron.com",
-    "TTWO": "take2games.com", "VOO": "vanguard.com", "VRT": "vertiv.com",
-    "NVDA": "nvidia.com", "GOOG": "google.com", "GOOGL": "google.com",
-    "SNOW": "snowflake.com", "AMD": "amd.com", "MRVL": "marvell.com",
-    "SMR": "nuscalepower.com", "CHA": "chagee.com", "PANW": "paloaltonetworks.com",
-    "SNDK": "sandisk.com", "MSFT": "microsoft.com", "AAPL": "apple.com",
-    "TSLA": "tesla.com", "TSM": "tsmc.com", "PLTR": "palantir.com",
-    "NFLX": "netflix.com", "COST": "costco.com",
-}
-
 
 def logo_url(symbol):
     # Financial Modeling Prep 依「股票代號」提供 logo（任何美股皆適用）
