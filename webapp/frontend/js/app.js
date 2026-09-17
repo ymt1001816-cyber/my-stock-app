@@ -1197,6 +1197,41 @@ function rerenderStatsBody() {
       <div class="s">全部歷史</div>
     </div></div></div>`;
 
+  // 逐月已實現損益：看「每個月各賺多少」的節奏，不跟著上面的區間篩選跑。
+  const m = s.monthly || [];
+  let monthlyHtml = "";
+  if (m.length) {
+    const yr = String(new Date().getFullYear());
+    const thisYear = m.filter(x => x.ym.startsWith(yr));
+    const yrPl = thisYear.reduce((a, x) => a + x.pl_usd, 0);
+    const yrDiv = thisYear.reduce((a, x) => a + x.div_usd, 0);
+    const yrCost = thisYear.reduce((a, x) => a + x.cost_usd, 0);
+    const yrPct = yrCost ? ` （${yrPl >= 0 ? "+" : ""}${(yrPl / yrCost * 100).toFixed(2)}%）` : "";
+    const rows = m.slice().reverse().map(x => {
+      const pct = x.pl_pct === null ? "—" : `${x.pl_pct >= 0 ? "+" : ""}${x.pl_pct.toFixed(2)}%`;
+      return `<tr>
+        <td>${esc(x.ym)}</td>
+        <td class="n">${x.sell_count}</td>
+        <td class="n" style="color:${colorOf(x.pl_usd)};font-weight:800">${mh(x.pl_usd, true)}</td>
+        <td class="n" style="color:${colorOf(x.pl_usd)}">${pct}</td>
+        <td class="n">${x.div_usd ? mh(x.div_usd) : "—"}</td>
+      </tr>`;
+    }).join("");
+    monthlyHtml = sec("📅 逐月已實現損益") +
+      `<div class="mcard">
+         <div class="myear">${yr} 年累計
+           <b style="color:${colorOf(yrPl)}">${mh(yrPl, true)}${yrPct}</b>
+           ${yrDiv ? `<span class="sub">　配息 ${mh(yrDiv)}</span>` : ""}
+         </div>
+         <div class="plotly-chart-wrap" id="monthlyChart"></div>
+         <div class="mtable-wrap"><table class="mtable">
+           <thead><tr><th>月份</th><th class="n">賣出</th><th class="n">已實現</th>
+             <th class="n">報酬率</th><th class="n">配息</th></tr></thead>
+           <tbody>${rows}</tbody>
+         </table></div>
+       </div>`;
+  }
+
   const showN = statsShowN[statsPeriod] || 10;
   const shown = s.transactions.slice(0, showN);
   const txHtml = shown.length
@@ -1214,9 +1249,16 @@ function rerenderStatsBody() {
     <b>${esc(r.symbol)}</b></div><b style="color:${colorOf(r.pl_usd)}">${mh(r.pl_usd, true)}</b></div>`).join("")
     + (zeroN ? `<p class="hint">（另有 ${zeroN} 檔尚未賣出過，沒有已實現損益）</p>` : "");
 
-  body.innerHTML = summary +
+  body.innerHTML = summary + monthlyHtml +
     sec(`💳 交易明細（${s.range_count} 筆）`) + txHtml + moreBtn +
     sec("🏆 個股損益排行（全部歷史）") + `<div class="cardgrid">${rankHtml}</div>` + renderFooter();
+
+  const mc = document.getElementById("monthlyChart");
+  if (mc && m.length) {
+    drawBarChart(mc, m.map(x => ({ t: x.ym, v: x.pl_usd })), {
+      posColor: GREEN, negColor: RED, moneyFmt: v => mh(v),
+    });
+  }
 }
 
 onSeg("stats-more", () => {

@@ -265,6 +265,24 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
 .bcard .t{font-weight:800;font-size:.98rem;color:var(--ink)}
 .bcard .s{color:#586071;font-size:.86rem;margin-top:4px;line-height:1.4}
 
+/* 逐月已實現損益：長條圖＋表格 */
+.mcard{background:var(--card-grad);border:1px solid var(--line);border-radius:var(--r-lg);
+  padding:16px 18px 10px;box-shadow:var(--sh-md), var(--card-hl);margin:4px 0 2px}
+.myear{font-size:.9rem;color:var(--sub);font-weight:700;margin-bottom:4px}
+.myear b{font-size:1.15rem;margin-left:6px;font-variant-numeric:tabular-nums}
+.myear .sub{font-size:.8rem;font-weight:400}
+/* 五欄表格在窄螢幕會撐破版面，讓它自己橫向捲，不要把卡片撐開 */
+.mtable-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.mtable{width:100%;min-width:340px;border-collapse:collapse;font-size:.86rem;margin-top:6px}
+.mtable th{font-size:.72rem;color:var(--sub);font-weight:700;text-align:left;
+  padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.mtable td{padding:8px;border-bottom:1px solid var(--line);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.mtable tbody tr:last-child td{border-bottom:none}
+.mtable tbody tr{transition:background .12s}
+.mtable tbody tr:hover{background:var(--card2)}
+.mtable .n{text-align:right}
+
 /* 統計摘要合併卡片 */
 .statsummary{background:var(--card-grad);border:1px solid var(--line);border-radius:var(--r-lg);
   padding:16px 18px;box-shadow:var(--sh-sm), var(--card-hl);margin:4px 0 2px}

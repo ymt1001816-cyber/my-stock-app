@@ -854,11 +854,31 @@ def get_stats(period: str = "all", start: str | None = None, end: str | None = N
             .reset_index().sort_values("pl_usd", ascending=False))
     ranking = [{"symbol": str(r["symbol"]), "pl_usd": float(r["pl_usd"])} for _, r in rank.iterrows()]
 
+    # 逐月已實現損益。刻意不受上面的區間篩選影響 —— 這一塊要看的就是「每個月各賺
+    # 多少」的長期節奏，跟著區間一起縮會失去意義。
+    # 只有賣出才算已實現；買進那幾筆的 pl_usd 是 0，配息另外分開列。
+    hm = hist[d.notna()].copy()
+    hm["_ym"] = d[d.notna()].dt.strftime("%Y-%m")
+    monthly = []
+    for ym, g in hm.groupby("_ym"):
+        sells = g[g["type"] == "賣出"]
+        pl = float(sells["pl_usd"].sum())
+        cost = float(sells["cost_usd"].sum()) if "cost_usd" in sells else 0.0
+        monthly.append({
+            "ym": str(ym),
+            "pl_usd": pl,
+            "cost_usd": cost,
+            "pl_pct": (pl / cost * 100) if cost else None,
+            "sell_count": int(len(sells)),
+            "div_usd": float(g[g["type"] == "配息"]["pl_usd"].sum()),
+        })
+    monthly.sort(key=lambda m: m["ym"])
+
     return {
         "empty": False, "period": period,
         "range_pl_usd": rpl, "range_pl_pct": rpct, "range_count": len(rng),
         "total_pl_all_usd": total_pl_all,
-        "transactions": transactions, "ranking": ranking,
+        "transactions": transactions, "ranking": ranking, "monthly": monthly,
         "range_start": str(p_start), "range_end": str(p_end),
     }
 
