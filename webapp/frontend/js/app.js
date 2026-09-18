@@ -305,9 +305,14 @@ async function renderHome() {
     <div class="wl">${label}</div>
     <div class="wb" style="color:${vcolor}">${big}</div>
     <div class="ws">${sub}</div></div>`;
+  // 首頁原本只有「今日」跟「未實現」，看不到真正落袋的錢。補上今年已實現損益
+  // （含配息），點下去直接到統計頁看逐月明細。
+  const ytd = (s.ytd_realized_usd || 0) + (s.ytd_div_usd || 0);
+  const mtdTxt = s.mtd_realized_usd ? `本月 ${mh(s.mtd_realized_usd, true)}` : "本月尚未實現";
   const smallCards = `<div class="wrow">
     ${wcard("今日損益", mh(s.day_pl_usd, true), "與昨日相比", colorOf(s.day_pl_usd))}
     ${wcard("未實現損益", mh(s.total_pl_usd, true), pctStr(s.pl_pct), colorOf(s.total_pl_usd))}
+    <a href="?nav=stats">${wcard(`${s.year} 已實現`, mh(ytd, true), mtdTxt, colorOf(ytd))}</a>
   </div>`;
 
   const cashStrip = `<a href="?nav=home&cash=1" class="cashstrip">
@@ -654,10 +659,13 @@ function rerenderHoldBody(animate = false) {
   const rows = [...holdData.rows];
   if (holdSort === "symbol") rows.sort((a, b) => a.symbol.localeCompare(b.symbol));
   else if (holdSort === "day_pct") rows.sort((a, b) => (a.day_pct || 0) - (b.day_pct || 0));
+  // 報酬率由高到低：想看「哪幾檔最會賺／賠最慘」時，比市值排序直接得多
+  else if (holdSort === "pl_pct") rows.sort((a, b) => (b.pl_pct || 0) - (a.pl_pct || 0));
   else rows.sort((a, b) => b.market_value_usd - a.market_value_usd);
 
   body.innerHTML = segGroup("holdsort", [
-    { key: "mv", label: "市值" }, { key: "symbol", label: "代號 A→Z" }, { key: "day_pct", label: "單日漲跌" },
+    { key: "mv", label: "市值" }, { key: "pl_pct", label: "報酬率" },
+    { key: "symbol", label: "代號 A→Z" }, { key: "day_pct", label: "單日漲跌" },
   ], holdSort) +
   `<div style="display:flex;justify-content:space-between;color:#6b7280;font-size:.76rem;padding:0 4px 6px">
     <span>持倉 · ${rows.length} 檔</span><span>損益金額　·　報酬率</span></div>` +

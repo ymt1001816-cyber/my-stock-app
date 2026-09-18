@@ -234,17 +234,34 @@ def update_config(body: ConfigUpdate):
     return {"ok": True}
 
 
+def _realized_since(start: date_cls):
+    """start（含）之後的已實現損益與配息。總覽頁要顯示「今年實際落袋多少」。"""
+    hist = load_history()
+    if hist.empty:
+        return 0.0, 0.0
+    d = pd.to_datetime(hist["date"], errors="coerce")
+    rng = hist[d.notna() & (d.dt.date >= start)]
+    sells = rng[rng["type"] == "賣出"]
+    divs = rng[rng["type"] == "配息"]
+    return float(sells["pl_usd"].sum()), float(divs["pl_usd"].sum())
+
+
 @app.get("/api/summary")
 def get_summary():
-    """總覽頁需要的所有資料：淨資產、今日/未實現損益、資產配置、提醒。"""
+    """總覽頁需要的所有資料：淨資產、今日/未實現/已實現損益、資產配置、提醒。"""
     hold = load_holdings()
     cfg = load_config()
     cash = float(cfg.get("cash_usd") or 0)
+    today = date_cls.today()
+    ytd_realized, ytd_div = _realized_since(date_cls(today.year, 1, 1))
+    mtd_realized, mtd_div = _realized_since(today.replace(day=1))
 
     if hold.empty:
         return {
             "empty": True, "cash_usd": cash, "total_mv_usd": 0, "assets_usd": cash,
             "day_pl_usd": 0, "total_pl_usd": 0, "pl_pct": 0,
+            "ytd_realized_usd": ytd_realized, "ytd_div_usd": ytd_div,
+            "mtd_realized_usd": mtd_realized, "mtd_div_usd": mtd_div, "year": today.year,
             "allocation": [], "winners": [], "alerts": [],
         }
 
@@ -303,6 +320,8 @@ def get_summary():
     return {
         "empty": False, "cash_usd": cash, "total_mv_usd": total_mv, "assets_usd": assets,
         "day_pl_usd": day_pl, "total_pl_usd": total_pl, "pl_pct": plpct,
+        "ytd_realized_usd": ytd_realized, "ytd_div_usd": ytd_div,
+        "mtd_realized_usd": mtd_realized, "mtd_div_usd": mtd_div, "year": today.year,
         "allocation": allocation, "winners": winners_out, "alerts": alerts,
     }
 

@@ -133,9 +133,13 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
 .empty-state-title{font-weight:800;font-size:1.05rem;color:var(--ink);margin-bottom:6px}
 .empty-state-hint{font-size:.88rem;color:var(--sub);max-width:280px;margin:0 auto;line-height:1.5}
 
-/* 兩張等大小卡：今日損益、未實現損益 */
-.wrow{display:flex;gap:9px;margin:0 0 8px}
-.wrow>a{flex:1 1 0;min-width:0;display:block;text-decoration:none!important;color:inherit!important}
+/* 三張數字卡：今日損益、未實現損益、今年已實現。
+   手機寬度排一行的話第三張只剩 92px，金額會被截掉，所以讓它掉到第二行佔整行；
+   桌面夠寬才三張並排。 */
+.wrow{display:flex;flex-wrap:wrap;gap:9px;margin:0 0 8px}
+.wrow>a,.wrow>.wcard.sm{flex:1 1 calc(50% - 5px);min-width:0}
+.wrow>*:nth-child(3){flex-basis:100%}
+.wrow>a{display:block;text-decoration:none!important;color:inherit!important}
 .wcard.sm{min-width:0;flex:1 1 0;padding:12px 11px;border-radius:var(--r-lg);
   background:var(--card-grad);border:1px solid var(--line);
   box-shadow:var(--sh-sm), var(--card-hl);color:var(--ink);display:flex;flex-direction:column;
@@ -605,6 +609,9 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
   /* 損益金額在桌面放大一級，數字是這個 App 的主角 */
   .hitem-right .nm{font-size:1.02rem}
   .hitem-right .chip{font-size:.75rem}
+
+  /* 桌面夠寬，三張數字卡並排回同一行 */
+  .wrow>a,.wrow>.wcard.sm,.wrow>*:nth-child(3){flex:1 1 0;flex-basis:0}
 
   /* 桌面卡片夠寬，把「現價／今日漲跌」補回清單上 */
   .hitem-mid{display:block;flex:0 0 auto;text-align:right;min-width:74px}
