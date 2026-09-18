@@ -478,6 +478,40 @@ def get_holding_detail(symbol: str):
     }
 
 
+class HoldingPatch(BaseModel):
+    """只改「設定值」，不動股數與成本 —— 那兩個只能透過買賣交易變動。"""
+    stop_price: float | None = Field(None, ge=0)
+    note: str | None = None
+    clear_stop: bool = False          # 要清掉停損價時用（None 代表「不修改」，分不出來）
+
+
+@app.patch("/api/holdings/{symbol}")
+def patch_holding(symbol: str, body: HoldingPatch):
+    """修改既有持股的停損價／備註。
+
+    以前 stop_price 只能在「買進」表單填，買完就再也改不了 —— 但判斷引擎
+    （analyze_light / 總覽警示）一直在讀它，等於整個停損提醒功能是死的。
+    備註也一樣：is_dca() 靠備註裡的「定期定額」決定要不要提醒獲利了結。
+    """
+    s = symbol.upper().strip()
+    hh = load_holdings()
+    if s not in hh["symbol"].values:
+        raise HTTPException(404, f"目前沒有持有 {s}。")
+    if body.clear_stop:
+        hh.loc[hh["symbol"] == s, "stop_price"] = None
+    elif body.stop_price is not None:
+        hh.loc[hh["symbol"] == s, "stop_price"] = body.stop_price
+    if body.note is not None:
+        hh.loc[hh["symbol"] == s, "note"] = body.note
+    save_holdings(hh)
+    row = hh[hh["symbol"] == s].iloc[0]
+    sp = row["stop_price"]
+    return {"ok": True, "symbol": s,
+            "stop_price": float(sp) if pd.notna(sp) else None,
+            "note": row["note"] or "",
+            "message": f"已更新 {s} 的設定！"}
+
+
 @app.get("/api/chart/{symbol}")
 def get_chart(symbol: str, range: str = "1mo"):
     period_map = {"1d": ("1d", "5m"), "5d": ("5d", "30m"), "1mo": ("1mo", "1d"),

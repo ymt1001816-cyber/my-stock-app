@@ -772,6 +772,19 @@ async function renderDetail(symbol, fromNav = "hold") {
       ["成本 +20% 🎯", usdOnly(v.cost_t20), "#1b7a34"],
       ["現價 +20%", usdOnly(v.t20), GREEN],
     ]);
+    // 「我的停損價」以前只能在買進表單填一次，買完就再也改不了，
+    // 但判斷引擎（跌破就跳「考慮停損」）跟總覽的警示一直在讀它。這裡補上設定入口。
+    const sp = p.stop_price;
+    html += `<div class="stopbar">
+      <div class="l">🛑 我的停損價</div>
+      <div class="v" id="spNow">${sp ? usdOnly(sp) : "<span class='sub'>尚未設定</span>"}</div>
+      <input type="number" id="spInput" min="0" step="any" placeholder="${v.suggest_stop}"
+             value="${sp || ""}" aria-label="停損價">
+      <button type="button" class="btn-pill" id="spSave">儲存</button>
+      ${sp ? `<button type="button" class="btn-pill" id="spClear">清除</button>` : ""}
+      <div class="msg" id="spMsg"></div>
+    </div>
+    <p class="hint">設定後，跌破這個價格時總覽頁會跳出提醒。留白按儲存＝沿用建議值 ${usdOnly(v.suggest_stop)}。</p>`;
     if (p.dca) {
       html += `<p class="hint">📈 這是定期定額標的，長期持有為主，不需急著獲利了結。</p>`;
     } else if (p.pl_pct >= 20) {
@@ -847,6 +860,7 @@ async function renderDetail(symbol, fromNav = "hold") {
   }
 
   body.innerHTML = html + renderFooter();
+  bindStopPrice(symbol);
   onSeg("range", async val => {
     detailRange = val;
     document.querySelectorAll('[data-seg-btn="range"]').forEach(b =>
@@ -858,6 +872,50 @@ async function renderDetail(symbol, fromNav = "hold") {
   const { points } = await chartPromise;
   drawChartPoints(points);
   prefetchNeighbors();
+}
+
+// 個股頁的「我的停損價」：儲存／清除。存完就地更新畫面，不整頁重畫
+// （重畫會把走勢圖跟新聞整批重抓一次，太浪費）。
+function bindStopPrice(symbol) {
+  const save = document.getElementById("spSave");
+  if (!save) return;
+  const input = document.getElementById("spInput");
+  const msg = document.getElementById("spMsg");
+  const now = document.getElementById("spNow");
+
+  const send = async (payload, okText) => {
+    msg.className = "msg";
+    msg.textContent = "儲存中…";
+    try {
+      const r = await api(`/holdings/${encodeURIComponent(symbol)}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      now.innerHTML = r.stop_price ? usdOnly(r.stop_price) : "<span class='sub'>尚未設定</span>";
+      input.value = r.stop_price || "";
+      msg.className = "msg ok";
+      msg.textContent = okText;
+      holdData = null;                 // 持股清單的判斷會變，下次進去要重抓
+    } catch (e) {
+      msg.className = "msg err";
+      msg.textContent = "儲存失敗，請再試一次。";
+    }
+  };
+
+  save.addEventListener("click", () => {
+    // 留白＝沿用 placeholder 上的建議值，省得使用者自己抄一次
+    const raw = input.value.trim() || input.placeholder;
+    const val = parseFloat(raw);
+    if (!(val > 0)) {
+      msg.className = "msg err";
+      msg.textContent = "請輸入大於 0 的價格。";
+      return;
+    }
+    send({ stop_price: val }, `已設定停損價 ${usdOnly(val)}`);
+  });
+
+  const clear = document.getElementById("spClear");
+  if (clear) clear.addEventListener("click", () => send({ clear_stop: true }, "已清除停損價"));
 }
 
 function statGrid(items) {
