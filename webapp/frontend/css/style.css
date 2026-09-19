@@ -191,9 +191,14 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
 /* 追蹤清單：整列往左滑到底＝移除，不擋住任何數字 */
 .watch-row-wrap{position:relative;overflow:hidden;border-radius:var(--r-md);margin-bottom:8px}
 .watch-row-wrap .hitem{margin-bottom:0}
+/* 紅色「移除」底層預設隱藏：它鋪在整列底下，列進場時上層內容是淡入的，
+   紅底會先整片透出來，看起來像每一列都閃一下紅光。只有真的左滑（JS 會加
+   .swiping）才顯示。 */
 .watch-row-delete-bg{position:absolute;inset:0;background:var(--red);color:#fff;
   display:flex;align-items:center;justify-content:flex-end;padding-right:22px;
-  font-weight:800;font-size:.92rem}
+  font-weight:800;font-size:.92rem;
+  opacity:0;transition:opacity .12s}
+.watch-row-wrap.swiping .watch-row-delete-bg{opacity:1}
 .watch-row-content{position:relative;touch-action:pan-y;
   transition:transform .3s var(--bounce),opacity .22s}
 .watch-row-content.dragging{transition:none}

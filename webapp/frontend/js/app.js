@@ -1124,7 +1124,10 @@ function bindWatchGestures() {
   function cleanup() {
     clearTimeout(pressTimer);
     if (content) content.classList.remove("dragging");
-    if (wrap) { wrap.classList.remove("reordering"); wrap.style.zIndex = ""; }
+    if (wrap) {
+      wrap.classList.remove("reordering", "swiping");
+      wrap.style.zIndex = "";
+    }
     wrap = content = null; mode = "idle";
   }
 
@@ -1162,7 +1165,13 @@ function bindWatchGestures() {
     if (mode === "deciding") {
       if (Math.abs(rawDx) < 8 && Math.abs(rawDy) < 8) return;
       clearTimeout(pressTimer);
-      if (Math.abs(rawDx) > Math.abs(rawDy) * 1.3) { mode = "swipe"; }
+      // 紅色「移除」底層平常是隱藏的（見 .watch-row-delete-bg）：它鋪在整列
+      // 底下，列進場時內容是淡入的，紅底就會先整片透出來，看起來像閃一下紅光。
+      // 真的開始左滑才顯示。
+      if (Math.abs(rawDx) > Math.abs(rawDy) * 1.3) {
+        mode = "swipe";
+        wrap.classList.add("swiping");
+      }
       else { cleanup(); return; }
     }
 
