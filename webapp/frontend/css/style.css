@@ -628,8 +628,12 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
   .hitem-right .nm{font-size:1.02rem}
   .hitem-right .chip{font-size:.75rem}
 
-  /* 桌面夠寬，三張數字卡並排回同一行 */
-  .wrow>a,.wrow>.wcard.sm,.wrow>*:nth-child(3){flex:1 1 0;flex-basis:0}
+  /* 三張數字卡：不要寫死「桌面就三張並排」——它們擠在右欄裡，1024/1180px 時
+     每張只剩 ~102px，但「NT$+165,842」這種六位數金額要 120px 才放得下，
+     會被硬生生截掉。改成依實際可用寬度決定欄數（每欄至少 150px），
+     放不下就自動掉成兩欄，寬了才三欄。 */
+  .wrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px}
+  .wrow>a,.wrow>.wcard.sm,.wrow>*:nth-child(3){flex:none;flex-basis:auto}
 
   /* 桌面卡片夠寬，把「現價／今日漲跌」補回清單上 */
   .hitem-mid{display:block;flex:0 0 auto;text-align:right;min-width:74px}
@@ -653,6 +657,14 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
   /* 新增交易／加入追蹤的表單：對齊內容區 */
   .sheet-panel{left:calc(var(--edge) + var(--rail) + var(--gap));right:var(--edge);
     margin:0;max-width:680px;border-radius:var(--r-bubble) var(--r-bubble) 0 0}
+}
+
+/* 超寬螢幕（2K/4K）：內容照 1cm 留白算會被拉到 2500px 寬，一行字橫跨整個
+   螢幕很難讀，卡片也會稀疏。超過 2000px 就把「側邊欄＋內容」整組置中並封頂
+   在 1900px —— 1920px 以下完全不受影響，維持原本的近滿版。 */
+@media (min-width:2000px){
+  .bottomnav{left:calc((100vw - 1900px) / 2 + var(--edge))}
+  #app{margin-left:calc((100vw - 1900px) / 2);max-width:1900px}
 }
 
 /* 使用者在系統設定裡關掉動畫時，一律不要播進場動畫 */
