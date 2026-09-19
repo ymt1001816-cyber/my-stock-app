@@ -451,7 +451,13 @@ def get_holding_detail(symbol: str):
             "rsi": rsi_val, "macd": macd_val, "vol_ratio": vol_ratio,
         }
 
+    wrow = load_watch()
+    wsel = wrow[wrow["symbol"] == symbol] if not wrow.empty else wrow
+    wtb = wsel.iloc[0]["target_buy"] if len(wsel) else None
+
     return {
+        "watch": {"in_list": bool(len(wsel)),
+                  "target_buy_usd": float(wtb) if pd.notna(wtb) else None},
         "symbol": symbol, "name": q["name"], "logo_url": mk.logo_url(symbol),
         "biz": mk.biz_zh(symbol, q["industry"]),
         "sector": mk.SECTOR_ZH.get(q["sector"], q["sector"] or "未分類"),
@@ -701,6 +707,40 @@ def remove_watchlist(symbol: str):
 
 class ReorderIn(BaseModel):
     symbols: list[str]
+
+
+class WatchPatch(BaseModel):
+    """只改設定值。target_buy 是「跌到這個價就提醒我可以買了」。"""
+    target_buy: float | None = Field(None, ge=0)
+    note: str | None = None
+    clear_target: bool = False        # None 代表「不修改」，要清空得另外講
+
+
+@app.patch("/api/watchlist/{symbol}")
+def patch_watchlist(symbol: str, body: WatchPatch):
+    """修改追蹤清單的目標買價／備註。
+
+    跟持股的停損價是同一個問題：analyze_watch() 一直在用 target_buy
+    （跌到目標價就 +2 分並提示「已跌到你的目標買價」），但以前只能在「加入
+    追蹤」時填一次，之後改不了，等於這個判斷從來沒被觸發過。
+    """
+    s = symbol.upper().strip()
+    nw = load_watch()
+    if s not in nw["symbol"].values:
+        raise HTTPException(404, f"{s} 不在追蹤清單。")
+    if body.clear_target:
+        nw.loc[nw["symbol"] == s, "target_buy"] = None
+    elif body.target_buy is not None:
+        nw.loc[nw["symbol"] == s, "target_buy"] = body.target_buy
+    if body.note is not None:
+        nw.loc[nw["symbol"] == s, "note"] = body.note
+    save_watch(nw)
+    row = nw[nw["symbol"] == s].iloc[0]
+    tb = row["target_buy"]
+    return {"ok": True, "symbol": s,
+            "target_buy": float(tb) if pd.notna(tb) else None,
+            "note": row["note"] or "",
+            "message": f"已更新 {s} 的目標買價！"}
 
 
 @app.put("/api/watchlist/reorder")

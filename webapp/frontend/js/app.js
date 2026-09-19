@@ -745,6 +745,25 @@ async function renderDetail(symbol, fromNav = "hold") {
     ${dispState || extra ? `<div style="color:var(--sub);font-size:.86rem;margin-top:4px">${dispState}${extra}</div>` : ""}
   </div>`;
 
+  // 追蹤清單的目標買價：跟持股的停損價同一個問題 —— analyze_watch 一直在用它
+  // （跌到目標價就提示「已跌到你的目標買價」），但以前只能在「加入追蹤」時填一次。
+  if (d.watch && d.watch.in_list) {
+    const tb = d.watch.target_buy_usd;
+    const suggest = (d.price_usd * 0.9).toFixed(2);   // 預設抓現價 -10% 當起點
+    html += sec("🎯 我的目標買價") +
+      `<div class="stopbar">
+        <div class="l">🎯 目標買價</div>
+        <div class="v" id="tbNow">${tb ? usdOnly(tb) : "<span class='sub'>尚未設定</span>"}</div>
+        <input type="number" id="tbInput" min="0" step="any" placeholder="${suggest}"
+               value="${tb || ""}" aria-label="目標買價">
+        <button type="button" class="btn-pill" id="tbSave">儲存</button>
+        ${tb ? `<button type="button" class="btn-pill" id="tbClear">清除</button>` : ""}
+        <div class="msg" id="tbMsg"></div>
+      </div>
+      <p class="hint">設定後，追蹤清單會顯示「距目標還高 X%」，跌到價位就提示可以進場。
+      留白按儲存＝用現價 -10%（${usdOnly(+suggest)}）。</p>`;
+  }
+
   if (d.position) {
     const p = d.position;
     const pc = colorOf(p.pl_usd);
@@ -860,7 +879,7 @@ async function renderDetail(symbol, fromNav = "hold") {
   }
 
   body.innerHTML = html + renderFooter();
-  bindStopPrice(symbol);
+  bindDetailSettings(symbol);
   onSeg("range", async val => {
     detailRange = val;
     document.querySelectorAll('[data-seg-btn="range"]').forEach(b =>
@@ -874,28 +893,32 @@ async function renderDetail(symbol, fromNav = "hold") {
   prefetchNeighbors();
 }
 
-// 個股頁的「我的停損價」：儲存／清除。存完就地更新畫面，不整頁重畫
-// （重畫會把走勢圖跟新聞整批重抓一次，太浪費）。
-function bindStopPrice(symbol) {
-  const save = document.getElementById("spSave");
+// 個股頁的價格設定列（持股的停損價、追蹤清單的目標買價）。兩者流程一樣：
+// 輸入 → PATCH → 就地更新畫面，不整頁重畫（重畫會把走勢圖跟新聞整批重抓一次）。
+function bindSettingBar({ ids, path, field, setKey, clearKey, label, onDone }) {
+  const save = document.getElementById(ids.save);
   if (!save) return;
-  const input = document.getElementById("spInput");
-  const msg = document.getElementById("spMsg");
-  const now = document.getElementById("spNow");
+  const input = document.getElementById(ids.input);
+  const msg = document.getElementById(ids.msg);
+  const now = document.getElementById(ids.now);
 
   const send = async (payload, okText) => {
     msg.className = "msg";
     msg.textContent = "儲存中…";
     try {
-      const r = await api(`/holdings/${encodeURIComponent(symbol)}`, {
+      const r = await api(path, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      now.innerHTML = r.stop_price ? usdOnly(r.stop_price) : "<span class='sub'>尚未設定</span>";
-      input.value = r.stop_price || "";
+      const val = r[field];
+      now.innerHTML = val ? usdOnly(val) : "<span class='sub'>尚未設定</span>";
+      input.value = val || "";
       msg.className = "msg ok";
       msg.textContent = okText;
-      holdData = null;                 // 持股清單的判斷會變，下次進去要重抓
+      // 「清除」鈕是依初始狀態畫出來的，第一次設定完要自己補上去；
+      // 清掉之後也要收回，不然會出現「清除一個尚未設定的值」這種怪按鈕。
+      syncClearBtn(!!val);
+      if (onDone) onDone();
     } catch (e) {
       msg.className = "msg err";
       msg.textContent = "儲存失敗，請再試一次。";
@@ -904,18 +927,50 @@ function bindStopPrice(symbol) {
 
   save.addEventListener("click", () => {
     // 留白＝沿用 placeholder 上的建議值，省得使用者自己抄一次
-    const raw = input.value.trim() || input.placeholder;
-    const val = parseFloat(raw);
+    const val = parseFloat(input.value.trim() || input.placeholder);
     if (!(val > 0)) {
       msg.className = "msg err";
       msg.textContent = "請輸入大於 0 的價格。";
       return;
     }
-    send({ stop_price: val }, `已設定停損價 ${usdOnly(val)}`);
+    send({ [setKey]: val }, `已設定${label} ${usdOnly(val)}`);
   });
 
-  const clear = document.getElementById("spClear");
-  if (clear) clear.addEventListener("click", () => send({ clear_stop: true }, "已清除停損價"));
+  const onClear = () => send({ [clearKey]: true }, `已清除${label}`);
+
+  function syncClearBtn(shouldExist) {
+    const existing = document.getElementById(ids.clear);
+    if (shouldExist && !existing) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn-pill";
+      btn.id = ids.clear;
+      btn.textContent = "清除";
+      btn.addEventListener("click", onClear);
+      save.insertAdjacentElement("afterend", btn);
+    } else if (!shouldExist && existing) {
+      existing.remove();
+    }
+  }
+
+  const initial = document.getElementById(ids.clear);
+  if (initial) initial.addEventListener("click", onClear);
+}
+
+function bindDetailSettings(symbol) {
+  const sym = encodeURIComponent(symbol);
+  bindSettingBar({
+    ids: { save: "spSave", clear: "spClear", input: "spInput", msg: "spMsg", now: "spNow" },
+    path: `/holdings/${sym}`, field: "stop_price",
+    setKey: "stop_price", clearKey: "clear_stop", label: "停損價",
+    onDone: () => { holdData = null; },        // 持股清單的判斷會變，下次進去要重抓
+  });
+  bindSettingBar({
+    ids: { save: "tbSave", clear: "tbClear", input: "tbInput", msg: "tbMsg", now: "tbNow" },
+    path: `/watchlist/${sym}`, field: "target_buy",
+    setKey: "target_buy", clearKey: "clear_target", label: "目標買價",
+    onDone: () => { watchData = null; },       // 追蹤清單的判斷也會變
+  });
 }
 
 function statGrid(items) {
