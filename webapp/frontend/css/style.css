@@ -592,8 +592,9 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
   .statgrid{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
   .statgrid.cols-3{grid-template-columns:repeat(3,minmax(0,1fr));max-width:580px}
   .statcardwrap .grid3{grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:18px 16px}
-  .detail-hero{padding:26px 30px}
-  .detail-hero-price{font-size:2.5rem}
+  /* 報價卡原本 225px 高、價格 2.5rem，在 1137px 寬的卡片裡偏空。 */
+  .detail-hero{padding:20px 26px}
+  .detail-hero-price{font-size:2.1rem}
 
   /* 台股上方的總計卡不需要橫跨整個內容區 */
   #twBody>.wcard.sm{max-width:460px}
@@ -609,8 +610,10 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
      只在桌面套用：iOS Safari 的 background-attachment:fixed 有已知問題。 */
   body{background-attachment:fixed,fixed,fixed,scroll}
 
-  /* 區塊標題右邊拉一條淡出的細線，版面比較有章法 */
-  .sec{display:flex;align-items:center;gap:14px}
+  /* 區塊標題右邊拉一條淡出的細線，版面比較有章法。
+     上緣留白從 26px 收到 19px —— 個股頁有 9 個區塊，光是標題間距就吃掉
+     230px 以上，桌面一屏本來就看得到更多內容，不需要那麼鬆。 */
+  .sec{display:flex;align-items:center;gap:14px;margin:19px 0 9px}
   .sec::after{content:'';flex:1 1 auto;height:1px;
     background:linear-gradient(90deg,var(--line),transparent)}
 

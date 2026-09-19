@@ -745,23 +745,22 @@ async function renderDetail(symbol, fromNav = "hold") {
     ${dispState || extra ? `<div style="color:var(--sub);font-size:.86rem;margin-top:4px">${dispState}${extra}</div>` : ""}
   </div>`;
 
-  // 追蹤清單的目標買價：跟持股的停損價同一個問題 —— analyze_watch 一直在用它
-  // （跌到目標價就提示「已跌到你的目標買價」），但以前只能在「加入追蹤」時填一次。
+  // 兩個設定列（持股的停損價、追蹤清單的目標買價）統一放在同一區，不要各自
+  // 開一個 🎯 區塊 —— 同時持有又在追蹤清單裡的股票（例如 VOO）會出現兩個標題，
+  // 而且「目標買價」還排在「我的部位」之上，優先順序是反的。
+  let targetBar = "";
   if (d.watch && d.watch.in_list) {
     const tb = d.watch.target_buy_usd;
-    const suggest = (d.price_usd * 0.9).toFixed(2);   // 預設抓現價 -10% 當起點
-    html += sec("🎯 我的目標買價") +
-      `<div class="stopbar">
+    const suggest = (d.price_usd * 0.9).toFixed(2);
+    targetBar = `<div class="stopbar">
         <div class="l">🎯 目標買價</div>
         <div class="v" id="tbNow">${tb ? usdOnly(tb) : "<span class='sub'>尚未設定</span>"}</div>
         <input type="number" id="tbInput" min="0" step="any" placeholder="${suggest}"
                value="${tb || ""}" aria-label="目標買價">
         <button type="button" class="btn-pill" id="tbSave">儲存</button>
         ${tb ? `<button type="button" class="btn-pill" id="tbClear">清除</button>` : ""}
-        <div class="msg" id="tbMsg"></div>
-      </div>
-      <p class="hint">設定後，追蹤清單會顯示「距目標還高 X%」，跌到價位就提示可以進場。
-      留白按儲存＝用現價 -10%（${usdOnly(+suggest)}）。</p>`;
+        <div class="msg" id="tbMsg">跌到這個價位，追蹤清單就會提示可以進場（留白＝現價 -10%）</div>
+      </div>`;
   }
 
   if (d.position) {
@@ -791,8 +790,6 @@ async function renderDetail(symbol, fromNav = "hold") {
       ["成本 +20% 🎯", usdOnly(v.cost_t20), "#1b7a34"],
       ["現價 +20%", usdOnly(v.t20), GREEN],
     ]);
-    // 「我的停損價」以前只能在買進表單填一次，買完就再也改不了，
-    // 但判斷引擎（跌破就跳「考慮停損」）跟總覽的警示一直在讀它。這裡補上設定入口。
     const sp = p.stop_price;
     html += `<div class="stopbar">
       <div class="l">🛑 我的停損價</div>
@@ -801,9 +798,9 @@ async function renderDetail(symbol, fromNav = "hold") {
              value="${sp || ""}" aria-label="停損價">
       <button type="button" class="btn-pill" id="spSave">儲存</button>
       ${sp ? `<button type="button" class="btn-pill" id="spClear">清除</button>` : ""}
-      <div class="msg" id="spMsg"></div>
-    </div>
-    <p class="hint">設定後，跌破這個價格時總覽頁會跳出提醒。留白按儲存＝沿用建議值 ${usdOnly(v.suggest_stop)}。</p>`;
+      <div class="msg" id="spMsg">跌破這個價位，總覽頁會跳出提醒（留白＝建議值 ${usdOnly(v.suggest_stop)}）</div>
+    </div>` + targetBar;
+    targetBar = "";                 // 已經接在停損列後面了，後面不要再放一次
     if (p.dca) {
       html += `<p class="hint">📈 這是定期定額標的，長期持有為主，不需急著獲利了結。</p>`;
     } else if (p.pl_pct >= 20) {
@@ -841,6 +838,8 @@ async function renderDetail(symbol, fromNav = "hold") {
       ]);
     }
   }
+
+  if (targetBar) html += sec("🎯 我的目標買價") + targetBar;
 
   html += sec("📈 走勢圖") + segGroup("range", [
     { key: "1d", label: "當天" }, { key: "5d", label: "1週" }, { key: "1mo", label: "1月" },
@@ -1306,12 +1305,24 @@ function rerenderStatsBody() {
   if (!s || !body) return;
   const periodLabel = { all: "全部", month: "當月", ytd: "今年", "90d": "近 90 天", custom: "自訂" }[statsPeriod];
   const rpct = s.range_pl_pct !== null ? `（${s.range_pl_pct >= 0 ? "+" : ""}${s.range_pl_pct.toFixed(2)}%）` : "";
+  // 勝率：選「全部」時上面兩格會是同一個數字（區間＝全部歷史），兩張大卡顯示
+  // 一樣的值很浪費。中間補一格勝率，任何區間都有資訊量。
+  const sells = s.transactions.filter(t => t.type === "賣出");
+  const wins = sells.filter(t => t.pl_usd > 0).length;
+  const winRate = sells.length ? (wins / sells.length * 100) : null;
+  const winCell = winRate === null ? "" : `
+    <div class="row"><div>
+      <div class="l">勝率</div>
+      <div class="v" style="color:${winRate >= 50 ? GREEN : RED}">${winRate.toFixed(0)}%</div>
+      <div class="s">${wins} 賺　·　${sells.length - wins} 賠（共 ${sells.length} 筆賣出）</div>
+    </div></div>`;
   const summary = `<div class="statsummary">
     <div class="row"><div>
       <div class="l">區間已實現損益</div>
       <div class="v" style="color:${colorOf(s.range_pl_usd)}">${mh(s.range_pl_usd, true)}${rpct}</div>
       <div class="s">${periodLabel}　·　${s.range_count} 筆交易</div>
     </div></div>
+    ${winCell}
     <div class="row"><div>
       <div class="l">累計已實現損益</div>
       <div class="v" style="color:${colorOf(s.total_pl_all_usd)}">${mh(s.total_pl_all_usd, true)}</div>
