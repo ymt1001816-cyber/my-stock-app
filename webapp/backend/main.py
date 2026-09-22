@@ -13,7 +13,7 @@ import pandas as pd
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, Field
 
 # 專案根目錄（webapp/backend/ 的上上層），讓我們可以直接 import 既有的 market.py / analysis.py
@@ -516,6 +516,22 @@ def patch_holding(symbol: str, body: HoldingPatch):
             "stop_price": float(sp) if pd.notna(sp) else None,
             "note": row["note"] or "",
             "message": f"已更新 {s} 的設定！"}
+
+
+@app.get("/api/logo/{filename}")
+def get_logo(filename: str, source: str = "fmp"):
+    """代理股票 logo 並補上長效快取標頭。
+
+    上游（FMP）只送 ETag、沒有 Cache-Control，瀏覽器每次開頁都要對每張圖做一次
+    驗證往返 —— 25 檔就是 25 個來回，實測佔掉 9.2 秒。這裡快取一天、並告訴
+    瀏覽器可以放心存一週，第二次之後就完全不必連線。
+    """
+    symbol = filename.upper().removesuffix(".PNG")
+    data, ctype = mk.fetch_logo(symbol, source)
+    if not data:
+        raise HTTPException(404, f"no logo for {symbol}")
+    return Response(content=data, media_type=ctype or "image/png",
+                    headers={"Cache-Control": "public, max-age=604800"})
 
 
 @app.get("/api/chart/{symbol}")

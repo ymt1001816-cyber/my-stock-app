@@ -161,8 +161,35 @@ def biz_zh(symbol, industry=""):
 
 
 def logo_url(symbol):
-    # Financial Modeling Prep 依「股票代號」提供 logo（任何美股皆適用）
-    return f"https://financialmodelingprep.com/image-stock/{symbol.upper()}.png"
+    """前端要用的 logo 網址：走自家後端代理（見 main.py 的 /api/logo）。
+
+    直連 Financial Modeling Prep 的問題是它完全沒有送 Cache-Control，只有
+    ETag —— 瀏覽器每次開頁都得對 25 張圖各做一次驗證往返，實測光 logo 就花掉
+    9.2 秒的網路時間。改由後端代理並補上長效快取標頭，第二次之後就完全命中
+    瀏覽器快取、0 個請求。同源還有個附帶好處：亮度偵測可以直接讀畫面上那張圖
+    的像素，不必再另外發一個帶 crossOrigin 的探測請求。
+    """
+    return f"/api/logo/{symbol.upper()}.png"
+
+
+LOGO_SOURCES = {
+    "fmp": "https://financialmodelingprep.com/image-stock/{s}.png",
+    # 有些公司在 FMP 上是純白 logo，白底看不見；這家有深色版本可以換
+    "alt": "https://assets.parqet.com/logos/symbol/{s}?format=png",
+}
+
+
+@cache_data(ttl=86400, show_spinner=False)
+def fetch_logo(symbol: str, source: str = "fmp"):
+    """抓回 logo 的原始位元組，快取一天。回傳 (bytes, content_type)，失敗回 (None, None)。"""
+    url = LOGO_SOURCES.get(source, LOGO_SOURCES["fmp"]).format(s=symbol.upper())
+    try:
+        r = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
+        if r.status_code != 200 or not r.content:
+            return None, None
+        return r.content, r.headers.get("content-type", "image/png")
+    except Exception:
+        return None, None
 
 
 def _ts_to_date(ts):

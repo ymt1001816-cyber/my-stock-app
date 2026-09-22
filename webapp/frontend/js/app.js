@@ -60,12 +60,12 @@ function colorOfTw(x) {
 // 亮度、維持白底，而不會連 logo 都載不出來。
 // ------------------------------------------------------------------
 const LOGO_TONE = (() => {
-  try { return JSON.parse(sessionStorage.getItem("logoTone") || "{}"); } catch { return {}; }
+  try { return JSON.parse(localStorage.getItem("logoTone") || "{}"); } catch { return {}; }
 })();
 let _toneCanvas = null;
 
 // 有些公司在這個 CDN 上的 logo 是白的，但別家有深色版本可以換過去。
-const altLogoUrl = s => `https://assets.parqet.com/logos/symbol/${encodeURIComponent(s)}?format=png`;
+const altLogoUrl = s => `/api/logo/${encodeURIComponent(s)}.png?source=alt`;
 
 function measureLogo(img) {
   try {
@@ -123,20 +123,18 @@ function onLogoLoad(img, symbol, url) {
   if (!circle) return;
   const cached = LOGO_TONE[symbol];
   if (cached) { applyLogoFix(img, circle, cached, symbol, url); return; }
-  const probe = new Image();
-  probe.crossOrigin = "anonymous";
-  probe.onload = () => {
-    const kind = classifyLogo(measureLogo(probe));
-    if (!kind) return;
-    LOGO_TONE[symbol] = kind;
-    try { sessionStorage.setItem("logoTone", JSON.stringify(LOGO_TONE)); } catch { /* 無痕模式會擋，忽略 */ }
-    applyLogoFix(img, circle, kind, symbol, url);
-  };
-  probe.src = url;
+  // logo 現在走自家 /api/logo 代理，是同源的 —— 可以直接讀畫面上這張圖的像素。
+  // 以前圖片來自第三方 CDN，canvas 會被污染，只好另外開一個帶 crossOrigin 的
+  // Image 再抓一次，等於每顆 logo 都多打一次網路請求（一頁 25 顆就是 25 次）。
+  const kind = classifyLogo(measureLogo(img));
+  if (!kind) return;
+  LOGO_TONE[symbol] = kind;
+  try { localStorage.setItem("logoTone", JSON.stringify(LOGO_TONE)); } catch { /* 無痕模式會擋，忽略 */ }
+  applyLogoFix(img, circle, kind, symbol, url);
 }
 
 function logoImg(symbol, size = 44, radius, url) {
-  url = url || `https://financialmodelingprep.com/image-stock/${symbol}.png`;
+  url = url || `/api/logo/${encodeURIComponent(symbol)}.png`;
   // logo 是打第三方 CDN，常常要等一下才會出現；先用代號字母當佔位，圖片載入完
   // 淡入蓋過去，感覺才不會像卡住，而不是空白格子晾在那邊。
   const initial = esc(String(symbol).slice(0, 2));
