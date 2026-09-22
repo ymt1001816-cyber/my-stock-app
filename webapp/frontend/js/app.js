@@ -1045,6 +1045,19 @@ async function submitWatch() {
 onSeg("submit", val => { if (val === "watch") submitWatch(); });
 
 let watchData = null;
+// 追蹤清單預設維持使用者自己拖出來的順序；選了其他排序時，拖曳排序會暫時停用，
+// 不然拖完存回去的順序跟畫面上看到的不一樣，會很莫名其妙。
+let watchSort = "custom";
+onSeg("watchsort", val => { watchSort = val; rerenderWatchBody(); });
+
+// 現價距離目標買價還有多遠。負數＝已經跌到目標價以下。
+// 沒設目標價回 null，排序時一律排到最後面。
+function targetGap(w) {
+  if (w.target_buy_usd === null || w.target_buy_usd === undefined) return null;
+  if (!w.price_usd || !w.target_buy_usd) return null;
+  return (w.price_usd - w.target_buy_usd) / w.target_buy_usd;
+}
+
 async function loadWatchData() {
   if (!watchData) watchData = await api("/watchlist");
 }
@@ -1057,16 +1070,41 @@ function rerenderWatchBody(animate = false) {
       "點右上角「➕」加入想觀察的股票。") + renderFooter();
     return;
   }
-  body.innerHTML =
+  const rows = [...watchData.rows];
+  if (watchSort === "symbol") rows.sort((a, b) => a.symbol.localeCompare(b.symbol));
+  else if (watchSort === "day_pct") rows.sort((a, b) => (a.day_pct || 0) - (b.day_pct || 0));
+  else if (watchSort === "gap") rows.sort((a, b) => {
+    const ga = targetGap(a), gb = targetGap(b);
+    if (ga === null && gb === null) return 0;
+    if (ga === null) return 1;        // 沒設目標價的排最後
+    if (gb === null) return -1;
+    return ga - gb;                   // 離目標價最近（或已跌破）的排前面
+  });
+
+  const withTarget = rows.filter(w => targetGap(w) !== null).length;
+  const reached = rows.filter(w => { const g = targetGap(w); return g !== null && g <= 0; }).length;
+  const left = `觀察 · ${rows.length} 檔` +
+    (reached ? ` · <b style="color:${GREEN}">🎯 ${reached} 檔到價</b>` : "");
+  const canDrag = watchSort === "custom";
+
+  body.innerHTML = segGroup("watchsort", [
+    { key: "custom", label: "自訂順序" }, { key: "gap", label: "距目標價" },
+    { key: "day_pct", label: "單日漲跌" }, { key: "symbol", label: "代號 A→Z" },
+  ], watchSort) +
     `<div style="display:flex;justify-content:space-between;color:#6b7280;font-size:.76rem;padding:0 4px 6px">
-      <span>觀察 · ${watchData.rows.length} 檔</span><span>現價　·　單日漲跌</span></div>` +
-    `<div class="cardgrid">${watchData.rows.map((w, i) => watchRowHtml(w, i, animate)).join("")}</div>` +
-    `<p class="hint">👆 點看詳細　·　👈 左滑到底移除　·　長按拖曳排序</p>` + renderFooter();
+      <span>${left}</span><span>現價　·　單日漲跌</span></div>` +
+    `<div class="cardgrid">${rows.map((w, i) => watchRowHtml(w, i, animate)).join("")}</div>` +
+    `<p class="hint">👆 點看詳細　·　👈 左滑到底移除` +
+      (canDrag ? "　·　長按拖曳排序" : "　·　切回「自訂順序」才能拖曳") +
+      (withTarget ? "" : "　·　進個股頁可設目標買價") + `</p>` + renderFooter();
   paintSparklines(body);
 }
 
 function watchRowHtml(w, idx = 0, animate = false) {
-  const sub = w.label + (w.target_buy_usd !== null ? ` · 目標 ${usdOnly(w.target_buy_usd)}` : "");
+  const gap = targetGap(w);
+  const sub = w.label + (gap === null ? "" :
+    gap <= 0 ? ` · 🎯 到價 ${usdOnly(w.target_buy_usd)}`
+             : ` · 目標 ${usdOnly(w.target_buy_usd)}，差 ${(gap * 100).toFixed(1)}%`);
   const row = stockRowHtml({ symbol: w.symbol, shares: null, weight_pct: null, price_usd: w.price_usd,
     day_pct: w.day_pct, emoji: w.emoji, spark: w.spark, _sub: sub }, "watch", idx, animate);
   return `<div class="watch-row-wrap" data-symbol="${esc(w.symbol)}">
@@ -1150,7 +1188,7 @@ function bindWatchGestures() {
     width = w.getBoundingClientRect().width;
     mode = "deciding";
     content.classList.add("dragging");
-    pressTimer = setTimeout(() => {
+    if (watchSort === "custom") pressTimer = setTimeout(() => {
       if (mode === "deciding") { mode = "reorder"; enterReorderMode(); }
     }, LONG_PRESS_MS);
   }, { passive: true });
