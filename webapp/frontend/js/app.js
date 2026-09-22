@@ -1266,41 +1266,52 @@ let statsCache = {};
 
 function txCardHtml(t) {
   const logo = logoWrap(t.symbol, 36, 8);
+  // history.csv 裡有 92/159 筆的 name 就等於 symbol（買進時 Yahoo 回不到公司名），
+  // 照原本的寫法會印成「ARM ARM」。名稱跟代號一樣就只留代號。
+  const nameTxt = String(t.name || "").trim();
+  const showName = nameTxt && nameTxt.toUpperCase() !== t.symbol.toUpperCase();
   const symBadge = `<span style="background:var(--card2);color:var(--sub);font-size:.72rem;
-    font-weight:700;padding:2px 7px;border-radius:6px;margin-right:6px">${esc(t.symbol)}</span>`;
+    font-weight:700;padding:2px 7px;border-radius:6px">${esc(t.symbol)}</span>`;
   const tagColor = { "買進": RED, "配息": ORANGE }[t.type] || GREEN;
   const tag = `<span style="font-weight:700;color:${tagColor}">${esc(t.type)}</span>`;
-  const head = `<div style="display:flex;justify-content:space-between;align-items:flex-start">
-    <div style="display:flex;align-items:center;gap:10px">${logo}
-      <div><div class="nm">${tag}　<span class="sub">${t.date}</span></div>
-      <div class="sub" style="margin-top:2px">${symBadge}${esc(t.name)}</div></div></div>`;
+  const head = `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+    <div style="display:flex;align-items:center;gap:10px;min-width:0">${logo}
+      <div style="min-width:0"><div class="nm">${tag}　<span class="sub">${t.date}</span></div>
+      <div class="sub" style="margin-top:3px;display:flex;align-items:center;gap:6px;min-width:0">
+        ${symBadge}${showName ? `<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(nameTxt)}</span>` : ""}
+      </div></div></div>`;
 
   const cls = { "配息": "div", "買進": "buy" }[t.type] || "sell";
-  let body;
+  const shareTxt = t.shares % 1 === 0 ? t.shares : t.shares.toFixed(5);
+  let right, footL, chip;
+
   if (t.type === "配息") {
-    body = `${head}<div style="text-align:right;color:${GREEN};font-weight:800">${mh(t.pl_usd, true)}</div></div>`;
+    // 配息本來沒有 footer，卡片比買進／賣出矮一截，排成格線時高低參差。
+    // 補一行說明讓三種版型結構一致。
+    right = `<div style="text-align:right;font-weight:800;font-size:1.05rem;color:${GREEN};white-space:nowrap">${mh(t.pl_usd, true)}</div>`;
+    footL = "股利入帳";
+    chip = "";
   } else if (t.type === "買進") {
-    let footL = `成本 ${usdOnly(t.price_usd)}`;
-    let chip = "";
+    right = `<div style="text-align:right;font-weight:800;font-size:1.05rem;white-space:nowrap">${shareTxt} 股</div>`;
+    footL = `成本 ${usdOnly(t.price_usd)}`;
+    chip = "";
     if (t.live_price_usd) {
       const gain = (t.live_price_usd - t.price_usd) * t.shares;
       const diffPct = t.price_usd ? (t.live_price_usd - t.price_usd) / t.price_usd * 100 : 0;
       const gc = colorOf(gain);
-      const arrow = gain >= 0 ? "▲" : "▼";
-      footL += ` 現價 ${usdOnly(t.live_price_usd)}`;
-      chip = `<span class="chip" style="color:${gc};background:${gc}1c">${arrow} ${mh(gain, true)}（${diffPct >= 0 ? "+" : ""}${diffPct.toFixed(1)}%）</span>`;
+      footL += `　現價 ${usdOnly(t.live_price_usd)}`;
+      chip = `<span class="chip" style="color:${gc};background:${gc}1c">${gain >= 0 ? "▲" : "▼"} ${mh(gain, true)}（${diffPct >= 0 ? "+" : ""}${diffPct.toFixed(1)}%）</span>`;
     }
-    body = `${head}<div style="text-align:right;font-weight:800;font-size:1.05rem">${t.shares % 1 === 0 ? t.shares : t.shares.toFixed(5)} 股</div></div>
-      <div class="tx-foot"><span class="sub">${footL}</span>${chip}</div>`;
   } else {
     const feeTax = t.fee + t.tax;
-    const exTxt = feeTax ? `（費稅 ${usdOnly(feeTax)}）` : "";
     const cc = colorOf(t.pl_usd);
-    const chip = `<span class="chip" style="color:${cc};background:${cc}1c">${mh(t.pl_usd, true)}（${t.pl_pct >= 0 ? "+" : ""}${t.pl_pct.toFixed(1)}%）</span>`;
-    body = `${head}<div style="text-align:right;font-weight:800;font-size:1.05rem">${t.shares % 1 === 0 ? t.shares : t.shares.toFixed(5)} 股</div></div>
-      <div class="tx-foot"><span class="sub">@ ${usdOnly(t.price_usd)}${exTxt}</span>${chip}</div>`;
+    right = `<div style="text-align:right;font-weight:800;font-size:1.05rem;white-space:nowrap">${shareTxt} 股</div>`;
+    footL = `@ ${usdOnly(t.price_usd)}${feeTax ? `（費稅 ${usdOnly(feeTax)}）` : ""}`;
+    chip = `<span class="chip" style="color:${cc};background:${cc}1c">${mh(t.pl_usd, true)}（${t.pl_pct >= 0 ? "+" : ""}${t.pl_pct.toFixed(1)}%）</span>`;
   }
-  return `<div class="tcard ${cls}" style="display:block">${body}</div>`;
+
+  return `<div class="tcard ${cls}" style="display:block">${head}${right}</div>
+    <div class="tx-foot"><span class="sub">${footL}</span>${chip}</div></div>`;
 }
 
 async function loadStats(period) {

@@ -103,12 +103,12 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
 /* 淨資產：用品牌橘色調的淺色漸層卡當視覺焦點，跟底下白色卡片群拉出層次，
    但不要用太深/太黑的顏色（跟頁面其他地方反差太大，會顯得突兀）。 */
 .hero-card{position:relative;overflow:hidden;padding:20px 20px 22px;margin:4px 0 14px;
-  border-radius:var(--r-xl);background:linear-gradient(135deg,#fffaf2 0%,#fceeda 100%);
-  border:1px solid rgba(201,110,10,.13);
-  box-shadow:var(--sh-md);transition:transform .2s var(--bounce)}
+  border-radius:var(--r-xl);background:linear-gradient(135deg,#fffefc 0%,#fdf7ee 100%);
+  border:1px solid rgba(201,110,10,.09);
+  box-shadow:var(--sh-sm), var(--card-hl);transition:transform .2s var(--bounce)}
 .hero-link:active .hero-card{transform:scale(.98)}
 .hero-card::after{content:'';position:absolute;top:-45%;right:-15%;width:220px;height:220px;
-  background:radial-gradient(circle, rgba(242,148,31,.16), transparent 70%);pointer-events:none}
+  background:radial-gradient(circle, rgba(242,148,31,.08), transparent 70%);pointer-events:none}
 .hero-card .wl{position:relative;font-size:.85rem;font-weight:700;color:var(--accent-dk);letter-spacing:.2px;
   display:flex;justify-content:space-between;align-items:center}
 .hero-card .wl .arrow{font-size:1.2rem;font-weight:700;color:var(--accent-dk)}
@@ -378,7 +378,10 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
   box-shadow:0 3px 10px rgba(201,110,10,.35), var(--card-hl)}
 
 /* 持股列表：一列可點進去看詳細 */
-.hitem-left{display:flex;align-items:center;gap:12px;min-width:0}
+/* 左側（logo＋代號名稱）吃掉所有剩餘寬度，右邊三欄各自固定寬 —— 原本是
+   justify-content:space-between，名稱長短不同就會把現價／走勢圖／損益推到
+   不同位置，一整排掃下來欄位歪七扭八。 */
+.hitem-left{display:flex;align-items:center;gap:12px;min-width:0;flex:1 1 0}
 .hitem-logo{width:44px;height:44px;border-radius:50%;flex:0 0 auto;overflow:hidden;
   background:var(--logo-bg);border:1px solid var(--logo-border);box-shadow:var(--logo-sh)}
 /* 單色白的 logo（APP、CEG、MRVL、LITE、AAPL、ALAB、CRWV）在白底上看不見。
@@ -389,6 +392,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
 .hitem-name{min-width:0}
 .hitem-name .sub{margin-top:3px;display:block}
 .hitem-right{text-align:right;flex:0 0 auto}
+.hitem-right .nm,.hitem-right .chip{font-variant-numeric:tabular-nums}
 .hitem-spark{flex:0 0 auto;width:44px;height:28px;margin:0 2px}
 .hitem-spark canvas{width:100%;height:100%;display:block}
 @media (min-width:420px){.hitem-spark{width:60px;margin:0 6px}}
@@ -585,9 +589,21 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
   /* 交易明細、損益排行、行事曆、簡報卡沒有中間欄，不需要那麼寬 */
   #statsRest .cardgrid,#calBody .cardgrid,#briefBody .cardgrid,#twBody .cardgrid{
     grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
-  .cardgrid .hitem{padding:15px 16px;gap:9px}
+  .cardgrid .hitem{padding:15px 16px;gap:10px}
+  /* 固定欄寬，讓每一列的現價／走勢圖／損益都對在同一條線上 */
+  .cardgrid .hitem-mid{flex:0 0 96px;width:96px}
+  .cardgrid .hitem-right{flex:0 0 112px;width:112px}
   .cardgrid .hitem-spark{width:62px;margin:0 5px}
   .cardgrid .hitem .sub{font-size:.74rem;line-height:1.35}
+
+  /* 簡報排三欄時字都擠在一起，卡片內距與行高放寬，讀起來才不累 */
+  #briefBody .bcard{padding:15px 18px;margin:10px 0;border-radius:var(--r-md)}
+  #briefBody .bcard .t{line-height:1.45}
+  #briefBody .bcard .s{margin-top:7px;line-height:1.55;font-size:.85rem}
+  #briefBody .nrow{padding:13px 16px;margin-bottom:10px}
+  #briefBody .nrow-t{line-height:1.5}
+  #briefBody .nrow-m{margin-top:6px}
+  #briefBody .cardgrid{gap:0 18px}
 
   /* 簡報的大盤指數並排；每格只剩 1/4 寬，名稱跟漲跌改成上下兩層免得折行 */
   .idxrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:0 12px}
@@ -641,7 +657,8 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
   .wrow>a,.wrow>.wcard.sm,.wrow>*:nth-child(3){flex:none;flex-basis:auto}
 
   /* 桌面卡片夠寬，把「現價／今日漲跌」補回清單上 */
-  .hitem-mid{display:block;flex:0 0 auto;text-align:right;min-width:74px}
+  .hitem-mid{display:block;flex:0 0 auto;text-align:right;min-width:74px;
+    font-variant-numeric:tabular-nums}
   .hitem-mid .v{font-size:.86rem;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
   .hitem-mid .d{font-size:.72rem;font-weight:700;margin-top:3px;font-variant-numeric:tabular-nums}
 
