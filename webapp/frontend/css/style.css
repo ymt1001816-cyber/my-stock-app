@@ -447,13 +447,30 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
 .swipe-peek .arrow{color:var(--accent)}
 .swipe-peek .px{color:var(--sub);font-weight:700}
 
-/* 骨架屏：冷啟動等 API 回來的時候用，取代純文字「載入中」，比較像原生 app 在讀資料。 */
-.skel{background:linear-gradient(100deg, var(--card2) 20%, var(--line) 42%, var(--card2) 64%);
-  background-size:250% 100%;animation:skel-shimmer 1.5s ease-in-out infinite;
-  border-radius:var(--r-md)}
-@keyframes skel-shimmer{0%{background-position:120% 0}100%{background-position:-20% 0}}
+/* 骨架屏：冷啟動等 API 回來的時候用，取代純文字「載入中」，比較像原生 app 在讀資料。
+   時間曲線用 linear 不用 ease-in-out —— ease-in-out 會在兩端放慢、中間衝過去，
+   看起來是一下一下在「閃」而不是穩定地「掃」。Render 免費方案冷啟動要等到
+   30～60 秒，閃這麼久很像當掉了。亮帶對比也調低一點。 */
+.skel{background:linear-gradient(100deg, var(--card2) 18%, var(--line) 40%, var(--card2) 62%);
+  background-size:300% 100%;animation:skel-shimmer 2.4s linear infinite;
+  border-radius:var(--r-md);opacity:.85}
+@keyframes skel-shimmer{0%{background-position:130% 0}100%{background-position:-30% 0}}
 .skel-row{height:64px;margin-bottom:8px}
 .skel-block{width:100%}
+
+/* 等超過 6 秒才淡出這行字：正常情況（暖機後 0.1 秒）根本不會被看到，
+   只有真的卡在冷啟動時才出現，免得使用者以為壞掉了。純 CSS 延遲，
+   資料回來整塊骨架會被換掉，不必清理計時器。 */
+.skel-hint{opacity:0;animation:skel-hint-in .5s ease 6s forwards;
+  text-align:center;color:var(--sub);font-size:.8rem;line-height:1.7;padding:14px 10px 4px}
+@keyframes skel-hint-in{to{opacity:1}}
+
+/* 使用者把系統的「減少動態效果」打開時，就不要再掃了，改成很淡的呼吸。 */
+@media (prefers-reduced-motion: reduce){
+  .skel{animation:skel-fade 2s ease-in-out infinite alternate;background:var(--card2)}
+  .skel-hint{animation-duration:.01s}
+  @keyframes skel-fade{from{opacity:.55}to{opacity:.85}}
+}
 
 /* ============================================================
    桌面版排版（≥1024px）

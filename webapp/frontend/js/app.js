@@ -179,11 +179,18 @@ function skeletonDetail() {
     skeletonBlock(140, "margin-bottom:16px") +
     skeletonBlock(260, "margin-bottom:16px") + skeletonRows(3);
 }
+// 線上版跑在 Render 免費方案，閒置一陣子就會休眠，下次開啟要等整台服務醒過來 ——
+// 實測冷啟動時 /api/watchlist 等過 55 秒。這段時間畫面上只有骨架屏在掃，
+// 很容易被當成當掉了。這行字延遲 6 秒才淡出（純 CSS），暖機後根本不會出現。
+function skeletonWakeHint() {
+  return `<div class="skel-hint">伺服器休眠中，正在喚醒…<br>
+    免費方案第一次開啟約需 30～60 秒，之後就會很快。</div>`;
+}
 function skeletonList(n = 6) {
-  return skeletonRows(n);
+  return skeletonRows(n) + skeletonWakeHint();
 }
 function skeletonCards() {
-  return skeletonBlock(100, "margin-bottom:12px") + skeletonRows(5);
+  return skeletonBlock(100, "margin-bottom:12px") + skeletonRows(5) + skeletonWakeHint();
 }
 // 資產走勢、每日簡報這類需要跑 10-20 秒的運算，骨架屏之外還是保留明確的等待時間提示，
 // 不然使用者會以為卡住了。
