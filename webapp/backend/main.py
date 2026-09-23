@@ -1139,6 +1139,11 @@ def warm_cache():
         list(ex.map(mk.get_quote, all_syms))
         list(ex.map(mk.get_calendar_dates, all_syms))
         list(ex.map(lambda s: mk.get_news(s, 4), all_syms))
+        # logo 也要預熱：冷啟動時 /api/logo 的記憶體快取是空的，使用者第一次開
+        # 追蹤清單會卡在代理去外面抓圖（實測中位數 4.7 秒）。先抓進來放著就好。
+        # 注意要跟 get_logo 用完全一樣的呼叫方式（兩個位置參數）—— 快取的 key 是
+        # (args, kwargs)，少傳一個 source 就是另一個 key，預熱會完全白做。
+        list(ex.map(lambda s: mk.fetch_logo(s, "fmp"), all_syms))
         for period, interval in _CHART_RANGES:
             list(ex.map(lambda s, p=period, i=interval: mk.get_chart(s, p, i), all_syms))
 
