@@ -150,7 +150,9 @@ function drawLineChart(container, points, { color, fillColor, moneyFmt }) {
     maxLabelW = Math.max(maxLabelW, ctx.measureText(label).width);
   }
 
-  const padL = 4, padR = Math.min(cssW * 0.42, maxLabelW + 12), padT = 8, padB = 8;
+  const showTicks = typeof tickFmt === "function";
+  const padL = 4, padR = Math.min(cssW * 0.42, maxLabelW + 12), padT = 8,
+        padB = showTicks ? 24 : 8;
   const plotW = cssW - padL - padR, plotH = cssH - padT - padB;
   const xAt = i => padL + (i / (points.length - 1)) * plotW;
   const yAt = v => padT + (1 - (v - lo) / (hi - lo)) * plotH;
@@ -219,8 +221,13 @@ function drawLineChart(container, points, { color, fillColor, moneyFmt }) {
     const idx = nearestIdx(clientX);
     paint(idx);
     const p = points[idx];
-    const d = new Date(p.t);
-    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    let dateStr;
+    if (labelFmt) {
+      dateStr = labelFmt(p.t);
+    } else {
+      const d = new Date(p.t);
+      dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
     tooltip.innerHTML = `<b>${dateStr}</b><br>${moneyFmt ? moneyFmt(p.v) : p.v.toFixed(2)}`;
     tooltip.style.display = "block";
     const rect = container.getBoundingClientRect();
@@ -264,7 +271,12 @@ function drawLineChart(container, points, { color, fillColor, moneyFmt }) {
 }
 
 // 輕量長條圖：同樣不用圖表庫，拿掉縮放，點/觸碰顯示數值。
-function drawBarChart(container, points, { posColor, negColor, moneyFmt }) {
+// labelFmt：tooltip 標題怎麼寫。預設把 p.t 當時間戳解析成日期。
+// tickFmt ：X 軸刻度怎麼寫。回傳 null 代表這張圖不要 X 軸標籤。
+// 逐月損益圖傳進來的 p.t 是 "2026-09" 這種字串，交給預設的 new Date() 會被當成
+// UTC 午夜，在美西時區顯示出來就變成「2026-08-31」—— 每根柱子都標成前一個月，
+// 一月那根還會退到前一年。所以格式化一律讓呼叫端決定。
+function drawBarChart(container, points, { posColor, negColor, moneyFmt, labelFmt, tickFmt }) {
   container.innerHTML = "";
   if (!points || points.length < 1) {
     container.innerHTML = `<div class="loading">暫時抓不到資料。</div>`;
@@ -310,7 +322,9 @@ function drawBarChart(container, points, { posColor, negColor, moneyFmt }) {
     maxLabelW = Math.max(maxLabelW, ctx.measureText(label).width);
   }
 
-  const padL = 4, padR = Math.min(cssW * 0.42, maxLabelW + 12), padT = 8, padB = 8;
+  const showTicks = typeof tickFmt === "function";
+  const padL = 4, padR = Math.min(cssW * 0.42, maxLabelW + 12), padT = 8,
+        padB = showTicks ? 24 : 8;
   const plotW = cssW - padL - padR, plotH = cssH - padT - padB;
   const n = points.length;
   const slot = plotW / n;
@@ -347,6 +361,33 @@ function drawBarChart(container, points, { posColor, negColor, moneyFmt }) {
       else ctx.rect(x, top, barW, h);
       ctx.fill();
     });
+
+    // 有正有負的時候，零線畫深一點 —— 不然只能靠顏色分辨賺賠，
+    // 柱子短的月份根本看不出來是往上還往下長。
+    if (lo < 0 && hi > 0) {
+      ctx.strokeStyle = theme.axisText;
+      ctx.globalAlpha = 0.45;
+      ctx.beginPath(); ctx.moveTo(padL, zeroY); ctx.lineTo(cssW - padR, zeroY); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    // X 軸刻度：原本一根標籤都沒有，14 根柱子排開完全看不出哪根是哪個月，
+    // 得自己去對照下面的表格。標籤太擠就等距跳著標。
+    if (showTicks) {
+      ctx.font = axisFont;
+      ctx.fillStyle = theme.axisText;
+      ctx.textAlign = "center";
+      const sample = tickFmt(points[0].t, 0) || "";
+      const need = ctx.measureText(sample).width + 14;
+      const step = Math.max(1, Math.ceil(need / slot));
+      // 從最後一根往回跳，最新的月份一定會被標到。
+      for (let i = n - 1; i >= 0; i -= step) {
+        const label = tickFmt(points[i].t, i);
+        if (!label) continue;
+        ctx.fillText(label, padL + slot * i + slot / 2, cssH - padB + 15);
+      }
+      ctx.textAlign = "start";
+    }
   }
   paint(null);
 
@@ -361,8 +402,13 @@ function drawBarChart(container, points, { posColor, negColor, moneyFmt }) {
     const idx = nearestIdx(clientX);
     paint(idx);
     const p = points[idx];
-    const d = new Date(p.t);
-    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    let dateStr;
+    if (labelFmt) {
+      dateStr = labelFmt(p.t);
+    } else {
+      const d = new Date(p.t);
+      dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
     tooltip.innerHTML = `<b>${dateStr}</b><br>${moneyFmt ? moneyFmt(p.v) : p.v.toFixed(2)}`;
     tooltip.style.display = "block";
     const rect = container.getBoundingClientRect();

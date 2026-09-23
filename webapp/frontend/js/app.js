@@ -1443,8 +1443,24 @@ function rerenderStatsBody() {
 
   const mc = document.getElementById("monthlyChart");
   if (mc && m.length) {
-    drawBarChart(mc, m.map(x => ({ t: x.ym, v: x.pl_usd })), {
+    // 後端只回「有賣出的月份」，中間沒交易的月份整個不見。等距畫成長條圖等於
+    // 在騙人 —— 2025-05 跟 2025-10 會並排在一起，看起來像連續兩個月。這裡把
+    // 空月份補成 0 補回去，X 軸才是真的時間軸。沒賣出的月份已實現損益本來就是 0。
+    const filled = [];
+    const [y0, m0] = m[0].ym.split("-").map(Number);
+    const [y1, m1] = m[m.length - 1].ym.split("-").map(Number);
+    const have = new Map(m.map(x => [x.ym, x.pl_usd]));
+    for (let k = y0 * 12 + (m0 - 1); k <= y1 * 12 + (m1 - 1); k++) {
+      const ym = `${Math.floor(k / 12)}-${String(k % 12 + 1).padStart(2, "0")}`;
+      filled.push({ t: ym, v: have.get(ym) || 0 });
+    }
+    drawBarChart(mc, filled, {
       posColor: GREEN, negColor: RED, moneyFmt: v => mh(v),
+      labelFmt: ym => `${ym.slice(0, 4)} 年 ${+ym.slice(5)} 月`,
+      // 年份換掉的那格標年份、其餘只標月份。不能用「月份==01」來判斷 ——
+      // 一月完全沒交易的年份（例如 2026）就會整年找不到年份標記。
+      tickFmt: (ym, i) => (i === 0 || ym.slice(0, 4) !== filled[i - 1].t.slice(0, 4)
+        ? ym.slice(0, 4) : `${+ym.slice(5)}月`),
     });
   }
 }
@@ -1475,7 +1491,7 @@ async function renderStats() {
       "到「📦 我的持股」新增一筆賣出或配息紀錄。") + renderFooter();
     return;
   }
-  body.innerHTML = sec("📅 選擇區間") + segGroup("period", [
+  body.innerHTML = sec("🔎 選擇區間") + segGroup("period", [
     { key: "month", label: "當月" }, { key: "90d", label: "近 90 天" },
     { key: "ytd", label: "今年" }, { key: "all", label: "全部" },
   ], statsPeriod) + `<div id="statsRest"></div>`;
@@ -1576,8 +1592,8 @@ async function loadTrendBody() {
     <div class="statcell" style="flex:1"><div class="l">${esc(trendGran)}走勢變化</div>
       <div class="v" style="color:${colorOf(t.delta_usd)}">${mh(t.delta_usd, true)}　${pctStr(t.delta_pct)}</div></div>
   </div>` +
-  sec("每期市值走勢") + `<div class="plotly-chart-wrap" id="trendChart"></div>` +
-  sec(`每${trendGran}變化`) + `<div class="plotly-chart-wrap" id="trendBarChart"></div>` +
+  sec("💹 每期市值走勢") + `<div class="plotly-chart-wrap" id="trendChart"></div>` +
+  sec(`📊 每${trendGran}變化`) + `<div class="plotly-chart-wrap" id="trendBarChart"></div>` +
   `<p class="hint">※ 以目前持股股數 × 歷史股價回推，僅供參考；未計入期間買賣變動。</p>` + renderFooter();
 
   const up = t.delta_usd >= 0;
@@ -1588,6 +1604,7 @@ async function loadTrendBody() {
   });
   drawBarChart(document.getElementById("trendBarChart"), t.changes, {
     posColor: GREEN, negColor: RED, moneyFmt: v => mh(v),
+    tickFmt: ts => { const d = new Date(ts); return `${d.getMonth() + 1}/${d.getDate()}`; },
   });
 }
 
