@@ -258,8 +258,10 @@ function renderHeader(title, extraHtml = "") {
 
 function renderBottomNav(activeKey) {
   // 手機是底部橫條（只有 icon），桌面在 CSS 裡改成左側側邊欄、這時才把文字標籤顯示出來。
-  const links = NAV.map(n => `<a class="navlink${n.key === activeKey ? " active" : ""}"
-    href="?nav=${n.key}"><div class="ic">${n.ic}</div><div class="navlabel">${n.label}</div></a>`).join("");
+  // 快捷鍵 1～6 做了卻沒人知道。數字不放進畫面（看起來很雜），改用原生 title
+  // 提示：滑鼠停在上面才出現，手機不受影響。
+  const links = NAV.map((n, i) => `<a class="navlink${n.key === activeKey ? " active" : ""}"
+    href="?nav=${n.key}" title="${n.label}（按 ${i + 1}）"><div class="ic">${n.ic}</div><div class="navlabel">${n.label}</div></a>`).join("");
   return `<div class="bottomnav"><div class="navbrand">📊 投資中心</div>${links}</div>`;
 }
 
@@ -430,7 +432,20 @@ function sheetMarkup(panelId, backdropId) {
 // 📦 我的持股：清單頁
 // ------------------------------------------------------------------
 let holdData = null;
-let holdSort = "mv";
+// 排序選擇存起來：電腦上常常來回切頁，每次都跳回預設很煩。
+// 存錯值（例如舊版本留下的 key）也不會壞，下面排序是 if/else 鏈，最後一支是預設。
+// allowed 一定要傳：存到不認得的值（改版後舊 key 還留著、或手動改過）時，
+// 排序本身會安全地落到預設分支，但選單上會變成一顆按鈕都沒亮，看起來像壞了。
+function loadPref(key, fallback, allowed) {
+  try {
+    const v = localStorage.getItem(key);
+    return allowed.includes(v) ? v : fallback;
+  } catch { return fallback; }
+}
+function savePref(key, val) {
+  try { localStorage.setItem(key, val); } catch { /* 無痕模式會擋，忽略 */ }
+}
+let holdSort = loadPref("holdSort", "mv", ["mv", "pl_pct", "symbol", "day_pct"]);
 let symbolsCache = null;
 let addOpen = false;
 let addType = "買進";
@@ -643,7 +658,7 @@ async function submitTransaction(kind) {
 }
 
 onSeg("addtype", val => { addType = val; rerenderAddPanel(); });
-onSeg("holdsort", val => { holdSort = val; rerenderHoldBody(); });
+onSeg("holdsort", val => { holdSort = val; savePref("holdSort", val); rerenderHoldBody(); });
 onSeg("submit", val => submitTransaction(val));
 
 async function loadHoldData(force = false) {
@@ -1054,8 +1069,8 @@ onSeg("submit", val => { if (val === "watch") submitWatch(); });
 let watchData = null;
 // 追蹤清單預設維持使用者自己拖出來的順序；選了其他排序時，拖曳排序會暫時停用，
 // 不然拖完存回去的順序跟畫面上看到的不一樣，會很莫名其妙。
-let watchSort = "custom";
-onSeg("watchsort", val => { watchSort = val; rerenderWatchBody(); });
+let watchSort = loadPref("watchSort", "custom", ["custom", "gap", "day_pct", "symbol"]);
+onSeg("watchsort", val => { watchSort = val; savePref("watchSort", val); rerenderWatchBody(); });
 
 // 現價距離目標買價還有多遠。負數＝已經跌到目標價以下。
 // 沒設目標價回 null，排序時一律排到最後面。
