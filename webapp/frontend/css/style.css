@@ -540,10 +540,25 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
     border-radius:var(--r-bubble);box-shadow:var(--sh-bubble), var(--card-hl)}
   .hero-card,.detail-hero{border-radius:26px}
   .hitem,.tcard,.nrow,.cashstrip,.posblock{
+    position:relative;
     transition:transform .32s var(--bounce), box-shadow .32s, border-color .25s}
   .hitem:hover,.tcard:hover,.nrow:hover,.cashstrip:hover{
     transform:translateY(-4px);box-shadow:var(--sh-bubble-hi), var(--card-hl)}
   .posblock:hover{transform:translateY(-3px);box-shadow:var(--sh-bubble-hi)}
+
+  /* 滑鼠停在卡片底部那幾 px 時會瘋狂閃動 —— 卡片被 hover 抬高 4px，底緣就從
+     游標下方退走，hover 取消、卡片掉回來、游標又進到卡片裡，於是無限來回，
+     而 --bounce 這種會回彈過頭的曲線讓每一次來回都是一次明顯的彈跳。
+     解法是用一層透明的 ::after 把可 hover 的範圍往下多延伸一點（比位移距離大），
+     卡片抬起後游標仍然落在範圍內，就不會斷掉。
+     絕對定位的子元素不算 flex item，所以不會影響 .hitem 的 space-between 排版。
+     延伸量都小於各自的下方間距（hitem 10px / tcard 9px / nrow 7px / posblock 6px），
+     不會蓋到下一張卡片。 */
+  .hitem::after,.tcard::after,.nrow::after,.cashstrip::after{
+    content:"";position:absolute;left:0;right:0;top:0;bottom:-6px;z-index:-1}
+  /* posblock 只位移 3px，而且上下間距僅 6px，延伸 4px 就夠且留得住餘裕。 */
+  .posblock::after{
+    content:"";position:absolute;left:0;right:0;top:0;bottom:-4px;z-index:-1}
 
   /* --- 動態：格線裡的卡片依序浮上來 --- */
   .cardgrid>.tcard,.cardgrid>.posblock,.cardgrid>.bcard,.cardgrid>.nrow,.cardgrid>.hitem{
