@@ -2268,6 +2268,17 @@ document.addEventListener("keydown", e => {
   }
 });
 
+// 捲動時在 <html> 掛上 is-scrolling，CSS 會據此停掉卡片的 hover 抬起效果。
+// 停止捲動 120ms 後才拿掉 —— 太短會在慣性捲動的空檔閃一下，太長則是停下來
+// 之後要等一拍才有反應。passive 讓捲動本身不被這個監聽器拖慢。
+let scrollIdleTimer = null;
+addEventListener("scroll", () => {
+  const root = document.documentElement;
+  if (!root.classList.contains("is-scrolling")) root.classList.add("is-scrolling");
+  clearTimeout(scrollIdleTimer);
+  scrollIdleTimer = setTimeout(() => root.classList.remove("is-scrolling"), 120);
+}, { passive: true });
+
 bindSwipeNav();
 bindPullRefresh();
 render();

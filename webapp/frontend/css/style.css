@@ -546,6 +546,14 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
     transform:translateY(-4px);box-shadow:var(--sh-bubble-hi), var(--card-hl)}
   .posblock:hover{transform:translateY(-3px);box-shadow:var(--sh-bubble-hi)}
 
+  /* 捲動時把卡片的抬起效果整個停掉。滑鼠停在清單上捲動的話，卡片會一張張
+     從游標底下經過，每一張都觸發一次「抬起 → 回彈 → 落下」，十幾張連續彈
+     看起來就是整片在抖。捲動停止約 120ms 後恢復，游標底下那張才平順地抬起來。
+     用 transform:none 而不是 pointer-events:none —— 後者會連點擊一起擋掉。 */
+  html.is-scrolling .hitem,html.is-scrolling .tcard,html.is-scrolling .nrow,
+  html.is-scrolling .cashstrip,html.is-scrolling .posblock{
+    transition:none !important;transform:none !important}
+
   /* 滑鼠停在卡片底部那幾 px 時會瘋狂閃動 —— 卡片被 hover 抬高 4px，底緣就從
      游標下方退走，hover 取消、卡片掉回來、游標又進到卡片裡，於是無限來回，
      而 --bounce 這種會回彈過頭的曲線讓每一次來回都是一次明顯的彈跳。
@@ -660,8 +668,29 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
   .statsummary .v{font-size:1.45rem}
 
   /* 背景光暈固定住，捲動時像一張穩定的桌面，而不是跟著內容跑的貼圖。
-     只在桌面套用：iOS Safari 的 background-attachment:fixed 有已知問題。 */
-  body{background-attachment:fixed,fixed,fixed,scroll}
+     只在桌面套用：iOS Safari 的 background-attachment:fixed 有已知問題。
+
+     這裡原本是 body{background-attachment:fixed,...}，但那會讓瀏覽器在每一次
+     捲動的每一幀都重繪整片固定背景（三層 1000x560 等級的 radial-gradient）。
+     而側邊欄跟吸頂頁首上面又疊著 backdrop-filter:blur()，合成器必須對著一個
+     不斷重繪的背景重新做模糊 —— 在 macOS 上就會看到整片一直在閃。
+     手機版沒有這一段，所以只有電腦上會發生。
+
+     改成把光暈搬到一層 position:fixed 的獨立圖層：它有自己的合成層，捲動時
+     完全不需要重繪，外觀與原本一模一樣。 */
+  body{background-image:none;background-color:#f2f0ec}
+  body::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;
+    background:
+      radial-gradient(1000px 560px at 6% -12%, rgba(255,201,134,.32) 0%, transparent 58%),
+      radial-gradient(880px 520px at 99% -6%, rgba(146,186,244,.24) 0%, transparent 56%),
+      radial-gradient(820px 640px at 64% 106%, rgba(152,223,186,.22) 0%, transparent 58%)}
+
+  /* 這兩個是唯一疊在捲動內容上的 backdrop-filter。各自提升成獨立的合成層，
+     捲動時才不會連帶把底下整塊重新算一次模糊。側邊欄是 position:fixed，
+     加 transform 很安全；吸頂頁首是 position:sticky，加 transform 會破壞
+     sticky 定位，所以只用 will-change。 */
+  .bottomnav{transform:translateZ(0)}
+  .pageheader,.subheader{will-change:backdrop-filter}
 
   /* 區塊標題右邊拉一條淡出的細線，版面比較有章法。
      上緣留白從 26px 收到 19px —— 個股頁有 9 個區塊，光是標題間距就吃掉
