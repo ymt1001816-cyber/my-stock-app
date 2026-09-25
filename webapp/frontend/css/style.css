@@ -487,9 +487,15 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
 .home-top,.home-cols,.home-col,.cardgrid,.idxrow{display:contents}
 
 /* 卡片進場：淡入＋微微上浮＋收一點點縮放，做出「氣泡浮上來」的感覺 */
+/* 原本是 translateY(16px) scale(.97) → scale(1)。縮放會強迫合成器每一幀重新
+   點陣化卡片裡的文字，18～39 張卡片同時進場時，整片文字就會一直重繪、糊掉
+   再清晰 —— 看起來就是在閃。而且卡片越多越嚴重。
+   --bounce 這條曲線還會衝過 1.0 再彈回來，等於又多放大一次。
+   拿掉 scale，只留 translateY 與 opacity：這兩個純粹在合成階段處理，
+   不需要重新點陣化文字。位移量從 16px 加到 18px 補回一點進場的存在感。 */
 @keyframes bubble-in{
-  from{opacity:0;transform:translateY(16px) scale(.97)}
-  to{opacity:1;transform:translateY(0) scale(1)}
+  from{opacity:0;transform:translateY(18px)}
+  to{opacity:1;transform:translateY(0)}
 }
 
 @media (min-width:1024px){
@@ -685,12 +691,9 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
       radial-gradient(880px 520px at 99% -6%, rgba(146,186,244,.24) 0%, transparent 56%),
       radial-gradient(820px 640px at 64% 106%, rgba(152,223,186,.22) 0%, transparent 58%)}
 
-  /* 這兩個是唯一疊在捲動內容上的 backdrop-filter。各自提升成獨立的合成層，
-     捲動時才不會連帶把底下整塊重新算一次模糊。側邊欄是 position:fixed，
-     加 transform 很安全；吸頂頁首是 position:sticky，加 transform 會破壞
-     sticky 定位，所以只用 will-change。 */
-  .bottomnav{transform:translateZ(0)}
-  .pageheader,.subheader{will-change:backdrop-filter}
+  /* 這裡曾經加過 .bottomnav{transform:translateZ(0)} 與
+     .pageheader{will-change:backdrop-filter} 想強制提升合成層，但那是沒有根據的
+     猜測，而 will-change 用錯本身就會造成繪製異常（畫面局部沒被重繪）。已移除。 */
 
   /* 區塊標題右邊拉一條淡出的細線，版面比較有章法。
      上緣留白從 26px 收到 19px —— 個股頁有 9 個區塊，光是標題間距就吃掉
@@ -728,10 +731,23 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
 
   /* 頁首固定在上方：清單很長（持股 22 檔、統計 150 筆、行事曆 39 筆）時
      往下捲還看得到現在在哪一頁、幣別切換也隨手可按。 */
+  /* 吸頂頁首原本是半透明 + backdrop-filter:blur()。position:sticky 的元素疊上
+     backdrop-filter，底下又是一直在捲動的內容，是 macOS 上最常見的繪製閃爍來源：
+     每一幀都要把底下重新取樣再模糊，一旦跟不上就會看到局部沒畫出來或忽明忽暗。
+     改成不透明底色，視覺差別極小（原本就已經有 .85 的底），但完全不需要重新取樣。 */
   .pageheader,.subheader{position:sticky;top:0;z-index:60;
     padding:10px 0;margin-bottom:10px;
-    background:rgba(238,240,243,.85);
-    backdrop-filter:blur(12px) saturate(1.2);-webkit-backdrop-filter:blur(12px) saturate(1.2)}
+    background:#f3f1ee}
+
+  /* 「＋」按鈕就在吸頂頁首裡面，等於也一直懸浮在捲動內容上方，同樣每一幀都要
+     重新取樣模糊。它的底色本來就是中心 .98 的近不透明漸層，拿掉模糊幾乎看不出
+     差別。只在桌面拿掉，手機版維持原樣。 */
+  .btn-circle-glass{backdrop-filter:none;-webkit-backdrop-filter:none}
+
+  /* 基礎樣式裡有 .hitem:hover .chip{transform:scale(1.06)} —— 滑鼠掃過清單時，
+     每張卡片的百分比標籤都被放大 6%，同樣會逼合成器重新點陣化那段文字。
+     改成只變底色深淺，一樣有回饋感，但完全不動到文字。 */
+  .hitem:hover .chip{transform:none;filter:saturate(1.15)}
 
   /* 送出鈕不要橫跨整個內容區（1100px 寬的按鈕很怪）；底部滑出表單裡維持滿寬 */
   .btn-submit{max-width:340px;margin-left:auto;margin-right:auto;display:block}
