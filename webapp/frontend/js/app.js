@@ -285,6 +285,19 @@ function bindHeaderEvents() {
 
 // ------------------------------------------------------------------
 // 總覽頁
+// 首頁的 /summary 原本每次進到總覽都重抓一次。線上版暖機後是 0.17 秒還好，
+// 冷啟動時要 5.8 秒 —— 而且背景預抓也會因此完全沒有意義。
+// 加一個 60 秒的短期快取：來回切頁是瞬間，但價格不會舊到有誤導性。
+// 下拉刷新與交易寫入後會帶 force=true 強制重抓。
+let summaryCache = null, summaryAt = 0;
+const SUMMARY_TTL_MS = 60000;
+async function loadSummary(force = false) {
+  if (!force && summaryCache && Date.now() - summaryAt < SUMMARY_TTL_MS) return summaryCache;
+  summaryCache = await api("/summary");
+  summaryAt = Date.now();
+  return summaryCache;
+}
+
 // ------------------------------------------------------------------
 async function renderHome() {
   const app = document.getElementById("app");
@@ -292,7 +305,7 @@ async function renderHome() {
   app.innerHTML = renderHeader("🏠 投資總覽", aboutBtn) + `<div id="homeBody">${skeletonHome()}</div>` + renderBottomNav("home");
   bindHeaderEvents();
 
-  const s = await api("/summary");
+  const s = await loadSummary();
   const body = document.getElementById("homeBody");
 
   if (s.empty) {
@@ -643,6 +656,10 @@ async function submitTransaction(kind) {
     // 買/賣/配息都會連動改可用資金，把快取的 state.cash 一起更新，
     // 不然剛送出交易後馬上點「編輯可用資金」看到的還是交易前的舊數字。
     // 這兩個 API 互不依賴，一起打不要排隊，不然關閉表單會多等一趟網路來回。
+    // 買／賣／配息都會改到總資產、已實現損益與交易明細，這兩頁的快取一併失效，
+    // 不然切過去看到的還是交易前的數字。
+    summaryCache = null;
+    statsCache = {};
     const [cfg] = await Promise.all([api("/config"), loadHoldData(true)]);
     state.cash = cfg.cash_usd;
     // 先讓成功訊息留在表單上一下子，再關閉並刷新列表，不然訊息會被 rerenderHoldBody
@@ -982,7 +999,7 @@ function bindDetailSettings(symbol) {
     ids: { save: "spSave", clear: "spClear", input: "spInput", msg: "spMsg", now: "spNow" },
     path: `/holdings/${sym}`, field: "stop_price",
     setKey: "stop_price", clearKey: "clear_stop", label: "停損價",
-    onDone: () => { holdData = null; },        // 持股清單的判斷會變，下次進去要重抓
+    onDone: () => { holdData = null; summaryCache = null; },        // 持股清單的判斷會變，下次進去要重抓
   });
   bindSettingBar({
     ids: { save: "tbSave", clear: "tbClear", input: "tbInput", msg: "tbMsg", now: "tbNow" },
@@ -1934,6 +1951,34 @@ onSeg("tw-submit", val => submitTw(val));
 // ------------------------------------------------------------------
 let configLoaded = false;
 
+// 第一頁畫完之後，趁使用者在看畫面的空檔，把其他頁的資料先抓回來放著。
+// 每一頁本來就有各自的記憶體快取，預抓完之後點過去就是瞬間顯示，
+// 不必再等一次往返 —— 線上版冷啟動時單支端點要 5~6 秒，差別非常明顯。
+//
+// 刻意「一支一支依序抓」而不是全部並行：後端在 Render 免費方案上資源很少，
+// 一次打六支會拖慢使用者當下正在看的那一頁。每支之間留一點空檔同理。
+// 全部失敗都吞掉 —— 這只是預熱，真正要用的時候各頁自己會再抓一次。
+let prefetchStarted = false;
+function prefetchOtherPages() {
+  if (prefetchStarted) return;
+  prefetchStarted = true;
+  const idle = window.requestIdleCallback || (fn => setTimeout(fn, 1200));
+  idle(async () => {
+    const jobs = [
+      () => loadSummary(),
+      () => loadHoldData(),
+      () => loadWatchData(),
+      () => loadSymbols(),
+      () => loadStats("all"),
+      () => loadTwData(),
+    ];
+    for (const job of jobs) {
+      try { await job(); } catch { /* 預熱失敗無所謂 */ }
+      await new Promise(r => setTimeout(r, 250));
+    }
+  }, { timeout: 3000 });
+}
+
 // 换頁不用整頁重新載入：只換網址列＋重繪內容，省掉重新下載/解析整份 HTML/CSS/JS
 // 跟每次都重抓一次 /api/config 的開銷，點哪裡都會快很多。
 function navigateTo(url) {
@@ -1950,6 +1995,8 @@ async function render() {
     state.cur = cfg.cur; state.rate = cfg.rate; state.cash = cfg.cash_usd;
     configLoaded = true;
   }
+
+  prefetchOtherPages();
 
   if (qs("trend", null)) return renderTrend();
   if (qs("cash", null)) return renderCash();
@@ -2175,6 +2222,7 @@ document.addEventListener("click", e => {
 // 不像整顆快取清空鈕那樣拖累全站，只重抓看得到的這一頁。
 async function pullToRefreshCurrentPage() {
   const nav = qs("nav", "home");
+  if (nav === "home") summaryCache = null;   // 總覽也要吃到下拉刷新
   if (nav === "hold" && !qs("sym", null)) holdData = null;
   if (nav === "watch") watchData = null;
   if (nav === "stats") statsCache = {};
