@@ -513,8 +513,15 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
     top:var(--edge);bottom:var(--edge);left:var(--edge);right:auto;width:var(--rail);
     flex-direction:column;justify-content:flex-start;align-items:stretch;gap:4px;
     padding:18px 12px;border:1px solid rgba(255,255,255,.7);
-    border-radius:var(--r-bubble);background:rgba(255,255,255,.72);
-    backdrop-filter:blur(18px) saturate(1.5);-webkit-backdrop-filter:blur(18px) saturate(1.5);
+    border-radius:var(--r-bubble);
+    /* 這裡原本是半透明 + backdrop-filter:blur(18px)。backdrop-filter 會讓這塊
+       永遠是一個獨立的合成層，而且每次底下有任何變動都要重新取樣再模糊 ——
+       在部分 macOS/GPU 組合上這正是畫面閃爍的來源，而且只有電腦版會用到。
+       改成不透明底色：視覺上仍是一張浮起的白色側欄，但完全不需要合成。 */
+    background:#fcfbfa;
+    /* 全域 .bottomnav 還有一條 backdrop-filter:blur(14px)，只是不寫這行的話
+       它會一路繼承到桌面版來。必須明確關掉。 */
+    backdrop-filter:none;-webkit-backdrop-filter:none;
     box-shadow:var(--sh-bubble), inset 0 1px 0 rgba(255,255,255,.9)}
   .navbrand{display:block;font-size:.98rem;font-weight:900;color:var(--ink);
     padding:6px 12px 18px;letter-spacing:.3px}
@@ -699,12 +706,11 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
 
      改成把光暈搬到一層 position:fixed 的獨立圖層：它有自己的合成層，捲動時
      完全不需要重繪，外觀與原本一模一樣。 */
-  body{background-image:none;background-color:#f2f0ec}
-  body::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;
-    background:
-      radial-gradient(1000px 560px at 6% -12%, rgba(255,201,134,.32) 0%, transparent 58%),
-      radial-gradient(880px 520px at 99% -6%, rgba(146,186,244,.24) 0%, transparent 56%),
-      radial-gradient(820px 640px at 64% 106%, rgba(152,223,186,.22) 0%, transparent 58%)}
+  /* 這裡先後試過 background-attachment:fixed 與 position:fixed 的 ::before 圖層，
+     兩者都會讓背景成為一個需要獨立合成／重繪的東西。既然使用者回報的就是
+     繪製閃爍，這裡不再做任何「固定」處理 —— 光暈直接跟著內容一起捲動，
+     瀏覽器只要一次畫好就好。代價只是捲動時光暈會跟著移動，換來零合成成本。 */
+  body{background-attachment:scroll}
 
   /* 這裡曾經加過 .bottomnav{transform:translateZ(0)} 與
      .pageheader{will-change:backdrop-filter} 想強制提升合成層，但那是沒有根據的
@@ -781,7 +787,24 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
   #app{margin-left:calc((100vw - 1900px) / 2);max-width:1900px}
 }
 
-/* 使用者在系統設定裡關掉動畫時，一律不要播進場動畫 */
+/* 使用者在系統設定裡打開「減少動態效果」時，整個 App 變成完全靜止。
+   這是繪製閃爍的最後一道保險：某些 macOS／顯卡組合上，只要畫面有東西在動
+   就可能出現閃爍，而這裡把動畫、轉場、以及所有會產生合成層的效果全部關掉，
+   瀏覽器只需要把畫面畫一次。
+   設定路徑：系統設定 → 輔助使用 → 顯示器 → 減少動態效果。 */
 @media (prefers-reduced-motion:reduce){
-  .cardgrid>*,.home-top>*,.idxrow>*,.navlink.active::before{animation:none!important}
+  *,*::before,*::after{
+    animation-duration:.01ms !important;
+    animation-iteration-count:1 !important;
+    transition-duration:.01ms !important;
+    scroll-behavior:auto !important}
+  .cardgrid>*,.home-top>*,.idxrow>*,.navlink.active::before{animation:none !important}
+  /* hover 的位移與縮放也一併停掉，只留陰影變化當回饋 */
+  .hitem:hover,.tcard:hover,.nrow:hover,.cashstrip:hover,.posblock:hover,
+  .btn-pill:hover,.btn-back:hover,.btn-circle-glass:hover,.hitem:hover .chip{
+    transform:none !important}
+  /* backdrop-filter 一律關掉：它會永遠佔著一個需要重新取樣的合成層 */
+  .bottomnav,.pageheader,.subheader,.btn-circle-glass{
+    backdrop-filter:none !important;-webkit-backdrop-filter:none !important}
+  body{background-attachment:scroll !important}
 }
