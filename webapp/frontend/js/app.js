@@ -1983,10 +1983,10 @@ function prefetchOtherPages() {
 // 跟每次都重抓一次 /api/config 的開銷，點哪裡都會快很多。
 function navigateTo(url) {
   history.pushState(null, "", url);
-  render();
+  renderThenPrefetch();
 }
 
-window.addEventListener("popstate", render);
+window.addEventListener("popstate", renderThenPrefetch);
 
 async function render() {
   const nav = qs("nav", "home");
@@ -1995,8 +1995,6 @@ async function render() {
     state.cur = cfg.cur; state.rate = cfg.rate; state.cash = cfg.cash_usd;
     configLoaded = true;
   }
-
-  prefetchOtherPages();
 
   if (qs("trend", null)) return renderTrend();
   if (qs("cash", null)) return renderCash();
@@ -2011,6 +2009,13 @@ async function render() {
   if (nav === "brief") return renderBrief();
   if (nav === "tw") return renderTwHoldings();
   return renderHome();
+}
+
+// 每個 render 分支都是 return，所以預抓不能寫在 render() 裡面 —— 寫在前面會在
+// 當前頁面還在等資料時就開始搶連線（線上冷啟動時特別明顯），寫在後面則永遠跑不到。
+// 包一層：先把當前頁面畫完，再開始預抓。
+async function renderThenPrefetch() {
+  try { await render(); } finally { prefetchOtherPages(); }
 }
 
 // 個股詳細／資產走勢／可用資金這些「子頁面」不是分頁輪播的一員，左右滑不該跳去
@@ -2329,4 +2334,4 @@ addEventListener("scroll", () => {
 
 bindSwipeNav();
 bindPullRefresh();
-render();
+renderThenPrefetch();
