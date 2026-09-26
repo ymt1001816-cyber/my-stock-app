@@ -458,6 +458,16 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
 /* 卡片內的「顯示更多／收合」。刻意不用 .btn-submit —— 那是滿寬的實心主按鈕，
    放在表格下面太搶戲。這裡只做底色與文字，沒有任何 transform 或動畫，
    不會替畫面增加任何需要重新合成的東西。 */
+/* 個股損益排行：賺／賠分成兩區。原本 35 檔混在一起，只有數字顏色不同，
+   要整片掃過才知道哪些是賠的。左側色條讓兩區一眼就分得開。
+   沒有 transform、沒有動畫。 */
+.ranklabel{display:flex;align-items:center;justify-content:space-between;
+  font-size:.82rem;font-weight:800;color:var(--sub);margin:10px 2px 6px}
+.ranklabel span{font-weight:700;font-size:.74rem;color:var(--sub);opacity:.75}
+.rank-row{border-left:4px solid var(--line)}
+.rank-row.up{border-left-color:var(--green,#18a558)}
+.rank-row.down{border-left-color:var(--red,#e0405a)}
+
 .btn-more{display:block;width:100%;margin:2px 0 10px;padding:10px 12px;
   border:none;border-top:1px solid var(--line);border-radius:0 0 var(--r-md) var(--r-md);
   background:transparent;color:var(--sub);font-size:.8rem;font-weight:700;

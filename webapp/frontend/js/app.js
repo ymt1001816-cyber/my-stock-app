@@ -1338,6 +1338,7 @@ async function renderWatchList() {
 let statsPeriod = "all";
 let statsShowN = {};
 let monthlyShowN = 5;      // 逐月表格一次顯示幾列
+let rankShowN = { gain: 5, loss: 5 };   // 個股損益排行：賺／賠各顯示幾檔
 let statsCache = {};
 
 function txCardHtml(t) {
@@ -1412,18 +1413,24 @@ function rerenderStatsBody() {
       <div class="v" style="color:${winRate >= 50 ? GREEN : RED}">${winRate.toFixed(0)}%</div>
       <div class="s">${wins} 賺　·　${sells.length - wins} 賠（共 ${sells.length} 筆賣出）</div>
     </div></div>`;
-  const summary = `<div class="statsummary">
-    <div class="row"><div>
-      <div class="l">區間已實現損益</div>
-      <div class="v" style="color:${colorOf(s.range_pl_usd)}">${mh(s.range_pl_usd, true)}${rpct}</div>
-      <div class="s">${periodLabel}　·　${s.range_count} 筆交易</div>
-    </div></div>
-    ${winCell}
+  // 選「全部」時，「區間已實現損益」與「累計已實現損益」本來就是同一個數字，
+  // 原本兩格都印出來，等於同一個值寫兩次 —— 這是這一區看起來又擠又怪的主因。
+  // 全部區間時只留兩格（已實現損益＋勝率），格子自然變寬、也不再重複。
+  const isAll = statsPeriod === "all";
+  const totalCell = isAll ? "" : `
     <div class="row"><div>
       <div class="l">累計已實現損益</div>
       <div class="v" style="color:${colorOf(s.total_pl_all_usd)}">${mh(s.total_pl_all_usd, true)}</div>
-      <div class="s">全部歷史</div>
-    </div></div></div>`;
+      <div class="s">全部歷史　·　含所有區間</div>
+    </div></div>`;
+  const summary = `<div class="statsummary">
+    <div class="row"><div>
+      <div class="l">${isAll ? "已實現損益" : "區間已實現損益"}</div>
+      <div class="v" style="color:${colorOf(s.range_pl_usd)}">${mh(s.range_pl_usd, true)}</div>
+      <div class="s">${isAll ? "全部歷史" : periodLabel}　·　${s.range_count} 筆交易${rpct ? `　·　報酬率 ${rpct.replace(/[（）]/g, "")}` : ""}</div>
+    </div></div>
+    ${winCell}
+    ${totalCell}</div>`;
 
   // 逐月已實現損益：看「每個月各賺多少」的節奏，不跟著上面的區間篩選跑。
   const m = s.monthly || [];
@@ -1480,12 +1487,33 @@ function rerenderStatsBody() {
     : "";
 
   // 從沒賣過的股票在「損益排行」裡一律是 0，排在中間把正負兩端隔開，純粹是雜訊。
+  // 原本 35 檔一次全排出來（12 列），而且賺的賠的長得一模一樣、只有數字顏色不同，
+  // 要掃過整片才知道哪些是賠的。改成賺／賠兩區分開，各自預設只列 5 檔。
   const ranked = s.ranking.filter(r => Math.abs(r.pl_usd) >= 0.005);
   const zeroN = s.ranking.length - ranked.length;
-  const rankHtml = ranked.map(r => `<div class="hitem"><div style="display:flex;align-items:center;gap:10px">
-    ${logoWrap(r.symbol, 30, 7)}
-    <b>${esc(r.symbol)}</b></div><b style="color:${colorOf(r.pl_usd)}">${mh(r.pl_usd, true)}</b></div>`).join("")
-    + (zeroN ? `<p class="hint">（另有 ${zeroN} 檔尚未賣出過，沒有已實現損益）</p>` : "");
+  const gainers = ranked.filter(r => r.pl_usd > 0).sort((a, b) => b.pl_usd - a.pl_usd);
+  const losers  = ranked.filter(r => r.pl_usd < 0).sort((a, b) => a.pl_usd - b.pl_usd);
+
+  const rankRow = r => `<div class="hitem rank-row ${r.pl_usd >= 0 ? "up" : "down"}">
+    <div style="display:flex;align-items:center;gap:10px;min-width:0">
+      ${logoWrap(r.symbol, 30, 7)}<b>${esc(r.symbol)}</b></div>
+    <b style="color:${colorOf(r.pl_usd)};white-space:nowrap">${mh(r.pl_usd, true)}</b></div>`;
+
+  const rankBlock = (list, label, key, showN) => {
+    if (!list.length) return "";
+    const shown = list.slice(0, showN);
+    const more = list.length - shown.length;
+    return `<div class="ranklabel">${label}<span>${list.length} 檔</span></div>` +
+      `<div class="cardgrid">${shown.map(rankRow).join("")}</div>` +
+      (more > 0
+        ? `<button type="button" class="btn-more" data-seg-btn="${key}" data-value="1">顯示更多（還有 ${more} 檔）</button>`
+        : (showN > 5 ? `<button type="button" class="btn-more" data-seg-btn="${key}-less" data-value="1">收合</button>` : ""));
+  };
+
+  const rankHtml =
+    rankBlock(gainers, "📈 賺錢的", "rank-gain", rankShowN.gain) +
+    rankBlock(losers,  "📉 賠錢的", "rank-loss", rankShowN.loss) +
+    (zeroN ? `<p class="hint">（另有 ${zeroN} 檔尚未賣出過，沒有已實現損益）</p>` : "");
 
   // 復盤是另一個角度（單筆交易的成敗），跟這一頁的「區間彙總」不一樣，
   // 放成獨立子頁，這裡只留一條入口，不讓統計頁再長下去。
@@ -1496,7 +1524,7 @@ function rerenderStatsBody() {
 
   body.innerHTML = summary + reviewStrip + monthlyHtml +
     sec(`💳 交易明細（${s.range_count} 筆）`) + txHtml + moreBtn +
-    sec("🏆 個股損益排行（全部歷史）") + `<div class="cardgrid">${rankHtml}</div>` + renderFooter();
+    sec("🏆 個股損益排行（全部歷史）") + rankHtml + renderFooter();
 
   const mc = document.getElementById("monthlyChart");
   if (mc && m.length) {
@@ -1522,6 +1550,10 @@ function rerenderStatsBody() {
   }
 }
 
+onSeg("rank-gain", () => { rankShowN.gain += 6; rerenderStatsBody(); });
+onSeg("rank-gain-less", () => { rankShowN.gain = 5; rerenderStatsBody(); });
+onSeg("rank-loss", () => { rankShowN.loss += 6; rerenderStatsBody(); });
+onSeg("rank-loss-less", () => { rankShowN.loss = 5; rerenderStatsBody(); });
 onSeg("monthly-more", () => { monthlyShowN += 6; rerenderStatsBody(); });
 onSeg("monthly-less", () => { monthlyShowN = 5; rerenderStatsBody(); });
 onSeg("stats-more", () => {
