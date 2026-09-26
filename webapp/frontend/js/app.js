@@ -1337,6 +1337,7 @@ async function renderWatchList() {
 // ------------------------------------------------------------------
 let statsPeriod = "all";
 let statsShowN = {};
+let monthlyShowN = 5;      // 逐月表格一次顯示幾列
 let statsCache = {};
 
 function txCardHtml(t) {
@@ -1434,7 +1435,11 @@ function rerenderStatsBody() {
     const yrDiv = thisYear.reduce((a, x) => a + x.div_usd, 0);
     const yrCost = thisYear.reduce((a, x) => a + x.cost_usd, 0);
     const yrPct = yrCost ? ` （${yrPl >= 0 ? "+" : ""}${(yrPl / yrCost * 100).toFixed(2)}%）` : "";
-    const rows = m.slice().reverse().map(x => {
+    // 表格預設只列最近 5 個月 —— 14 個月一次全攤開太長，統計頁一進來就被
+    // 表格佔掉一整屏。上面的長條圖維持顯示全部月份，趨勢不受影響。
+    const all = m.slice().reverse();
+    const mShowN = monthlyShowN || 5;
+    const rows = all.slice(0, mShowN).map(x => {
       const pct = x.pl_pct === null ? "—" : `${x.pl_pct >= 0 ? "+" : ""}${x.pl_pct.toFixed(2)}%`;
       return `<tr>
         <td>${esc(x.ym)}</td>
@@ -1456,6 +1461,12 @@ function rerenderStatsBody() {
              <th class="n">報酬率</th><th class="n">配息</th></tr></thead>
            <tbody>${rows}</tbody>
          </table></div>
+         ${all.length > mShowN
+           ? `<button type="button" class="btn-more" data-seg-btn="monthly-more" data-value="1">
+                顯示更多（還有 ${all.length - mShowN} 個月）</button>`
+           : (all.length > 5
+             ? `<button type="button" class="btn-more" data-seg-btn="monthly-less" data-value="1">收合</button>`
+             : "")}
        </div>`;
   }
 
@@ -1465,7 +1476,7 @@ function rerenderStatsBody() {
     ? `<div class="cardgrid">${shown.map(txCardHtml).join("")}</div>`
     : "<i>此區間沒有交易。</i>";
   const moreBtn = showN < s.transactions.length
-    ? `<button type="button" class="btn-submit" data-seg-btn="stats-more" data-value="1">查看更多（還有 ${s.transactions.length - showN} 筆）</button>`
+    ? `<button type="button" class="btn-more" data-seg-btn="stats-more" data-value="1">查看更多（還有 ${s.transactions.length - showN} 筆）</button>`
     : "";
 
   // 從沒賣過的股票在「損益排行」裡一律是 0，排在中間把正負兩端隔開，純粹是雜訊。
@@ -1504,6 +1515,8 @@ function rerenderStatsBody() {
   }
 }
 
+onSeg("monthly-more", () => { monthlyShowN += 6; rerenderStatsBody(); });
+onSeg("monthly-less", () => { monthlyShowN = 5; rerenderStatsBody(); });
 onSeg("stats-more", () => {
   statsShowN[statsPeriod] = (statsShowN[statsPeriod] || 10) + 10;
   rerenderStatsBody();

@@ -455,6 +455,19 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
   background-size:300% 100%;animation:skel-shimmer 2.4s linear infinite;
   border-radius:var(--r-md);opacity:.85}
 @keyframes skel-shimmer{0%{background-position:130% 0}100%{background-position:-30% 0}}
+/* 卡片內的「顯示更多／收合」。刻意不用 .btn-submit —— 那是滿寬的實心主按鈕，
+   放在表格下面太搶戲。這裡只做底色與文字，沒有任何 transform 或動畫，
+   不會替畫面增加任何需要重新合成的東西。 */
+.btn-more{display:block;width:100%;margin:2px 0 10px;padding:10px 12px;
+  border:none;border-top:1px solid var(--line);border-radius:0 0 var(--r-md) var(--r-md);
+  background:transparent;color:var(--sub);font-size:.8rem;font-weight:700;
+  font-family:inherit;cursor:pointer}
+/* 不在卡片裡時（例如交易明細下方）沒有卡片邊框可以接，補一點左右內縮跟圓角，
+   才不會變成一條橫貫整個內容區的線。 */
+.cardgrid + .btn-more{border-top:1px solid var(--line);border-radius:var(--r-md);
+  margin-top:6px;background:var(--card2)}
+.btn-more:hover{background:var(--card2);color:var(--ink)}
+
 .skel-row{height:64px;margin-bottom:8px}
 .skel-block{width:100%}
 
@@ -657,6 +670,12 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
   /* 交易明細、損益排行、行事曆、簡報卡沒有中間欄，不需要那麼寬 */
   #statsRest .cardgrid,#calBody .cardgrid,#briefBody .cardgrid,#twBody .cardgrid{
     grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+
+  /* 交易明細卡片在桌面上是 368px 寬、塞三行，內距只有 12px 顯得很擠
+     （實測沒有文字被裁，純粹是密度問題）。上下各多 3px、分隔線前後各多 2px，
+     只放鬆間距、不改字級與欄數，排版不會位移。 */
+  .tcard{padding:15px 17px}
+  .tx-foot{margin-top:10px;padding-top:10px}
   .cardgrid .hitem{padding:15px 16px;gap:10px}
   /* 固定欄寬，讓每一列的現價／走勢圖／損益都對在同一條線上 */
   .cardgrid .hitem-mid{flex:0 0 96px;width:96px}
