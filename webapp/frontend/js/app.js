@@ -1981,12 +1981,30 @@ function prefetchOtherPages() {
 
 // 换頁不用整頁重新載入：只換網址列＋重繪內容，省掉重新下載/解析整份 HTML/CSS/JS
 // 跟每次都重抓一次 /api/config 的開銷，點哪裡都會快很多。
+// 捲動位置一直沒人管，所以「點進去／返回」的位置是瀏覽器自己亂猜的：
+//   · pushState 不會重設捲動 → 點進個股詳細頁時，會沿用清單頁的位置，
+//     一進去就停在頁面中段，看起來像排版跑掉。
+//   · 按返回時 popstate 立刻觸發，但內容是之後才非同步重繪的，瀏覽器的自動
+//     還原抓到的是「舊頁面的高度」，還原到的位置自然是錯的。
+//   · 兩頁高度差多少會決定它是沿用、被截斷還是歸零 —— 這就是為什麼「有些地方」
+//     會跑、有些不會。
+// 改成自己管：往前進一律回到最上面，按返回則回到離開那一頁時的位置。
+if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+
+// key 用完整網址；同一頁不同股票（?nav=hold&sym=VOO）各自記各自的。
+const scrollMemo = new Map();
+
 function navigateTo(url) {
+  scrollMemo.set(location.href, window.scrollY);   // 先記住現在這一頁停在哪
   history.pushState(null, "", url);
-  renderThenPrefetch();
+  // 等內容真的畫完才捲 —— 畫完前頁面還是舊的高度，先捲會被瀏覽器夾回去。
+  renderThenPrefetch().then(() => window.scrollTo(0, 0));
 }
 
-window.addEventListener("popstate", renderThenPrefetch);
+window.addEventListener("popstate", () => {
+  const back = scrollMemo.get(location.href) || 0;
+  renderThenPrefetch().then(() => window.scrollTo(0, back));
+});
 
 async function render() {
   const nav = qs("nav", "home");
