@@ -992,6 +992,71 @@ def get_stats(period: str = "all", start: str | None = None, end: str | None = N
     }
 
 
+@app.get("/api/review")
+def get_review():
+    """交易復盤：只看「賣出」，那才是真正結算過的一筆。
+
+    買進與配息不進來 —— 買進還沒結果，配息不是一次買賣的成敗。
+    """
+    hist = load_history()
+    if hist.empty:
+        return {"empty": True}
+    s = hist[hist["type"] == "賣出"].copy()
+    if s.empty:
+        return {"empty": True}
+
+    s["pl_usd"] = pd.to_numeric(s["pl_usd"], errors="coerce").fillna(0.0)
+    s["pl_pct"] = pd.to_numeric(s["pl_pct"], errors="coerce").fillna(0.0) * 100  # 檔案裡存的是小數
+    s["date"] = s["date"].astype(str).str[:10]
+
+    def rows(df):
+        return [{"date": r["date"], "symbol": str(r["symbol"]),
+                 "shares": float(r["shares"] or 0), "price_usd": float(r["price"] or 0),
+                 "pl_usd": round(float(r["pl_usd"]), 2), "pl_pct": round(float(r["pl_pct"]), 2)}
+                for _, r in df.iterrows()]
+
+    wins = s[s["pl_usd"] > 0]
+    losses = s[s["pl_usd"] < 0]
+    gross_win = float(wins["pl_usd"].sum())
+    gross_loss = float(-losses["pl_usd"].sum())
+
+    # 報酬率分布：用固定級距，正負各四段，兩端各收一個「以上/以下」
+    edges = [(-1e9, -30), (-30, -15), (-15, -5), (-5, 0), (0, 5), (5, 15), (15, 30), (30, 1e9)]
+    labels = ["<-30%", "-30~-15%", "-15~-5%", "-5~0%", "0~5%", "5~15%", "15~30%", ">30%"]
+    dist = [{"label": lb, "count": int(((s["pl_pct"] > lo) & (s["pl_pct"] <= hi)).sum())}
+            for (lo, hi), lb in zip(edges, labels)]
+
+    by_year = []
+    for y, g in s.groupby(s["date"].str[:4]):
+        w = g[g["pl_usd"] > 0]
+        by_year.append({
+            "year": y, "count": int(len(g)), "wins": int(len(w)),
+            "win_rate": round(len(w) / len(g) * 100, 1) if len(g) else None,
+            "pl_usd": round(float(g["pl_usd"].sum()), 2),
+        })
+    by_year.sort(key=lambda x: x["year"])
+
+    return {
+        "empty": False,
+        "overall": {
+            "count": int(len(s)), "wins": int(len(wins)), "losses": int(len(losses)),
+            "win_rate": round(len(wins) / len(s) * 100, 1),
+            "avg_win": round(float(wins["pl_usd"].mean()), 2) if len(wins) else 0.0,
+            "avg_loss": round(float(losses["pl_usd"].mean()), 2) if len(losses) else 0.0,
+            # 盈虧比：總獲利 ÷ 總虧損。>1 代表賺的比賠的多，跟勝率是兩回事 ——
+            # 勝率低但盈虧比高一樣能賺錢，這是勝率單獨看不出來的。
+            "profit_factor": round(gross_win / gross_loss, 2) if gross_loss else None,
+            "total_pl": round(float(s["pl_usd"].sum()), 2),
+        },
+        "best": rows(s.nlargest(5, "pl_usd")),
+        "worst": rows(s.nsmallest(5, "pl_usd")),
+        "best_pct": rows(s.nlargest(5, "pl_pct")),
+        "worst_pct": rows(s.nsmallest(5, "pl_pct")),
+        "distribution": dist,
+        "by_year": by_year,
+    }
+
+
 # ------------------------------------------------------------------
 # 📰 每日簡報
 # ------------------------------------------------------------------

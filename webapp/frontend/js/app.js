@@ -746,7 +746,7 @@ async function renderDetail(symbol, fromNav = "hold") {
   const app = document.getElementById("app");
   app.innerHTML = `<button class="btn-back" id="backBtn">←</button>
     <div id="detailBody">${skeletonDetail()}</div>` + renderBottomNav(fromNav);
-  document.getElementById("backBtn").addEventListener("click", () => navigateTo(`?nav=${fromNav}`));
+  document.getElementById("backBtn").addEventListener("click", () => goBack(`?nav=${fromNav}`));
 
   // 上一頁點進來前如果已經背景預抓過這檔（滑動切換的上一/下一檔常常就是），直接吃現成的，
   // 不用再重新打一次一樣的 API；沒預抓到才照原本方式現抓。
@@ -1487,7 +1487,14 @@ function rerenderStatsBody() {
     <b>${esc(r.symbol)}</b></div><b style="color:${colorOf(r.pl_usd)}">${mh(r.pl_usd, true)}</b></div>`).join("")
     + (zeroN ? `<p class="hint">（另有 ${zeroN} 檔尚未賣出過，沒有已實現損益）</p>` : "");
 
-  body.innerHTML = summary + monthlyHtml +
+  // 復盤是另一個角度（單筆交易的成敗），跟這一頁的「區間彙總」不一樣，
+  // 放成獨立子頁，這裡只留一條入口，不讓統計頁再長下去。
+  const reviewStrip = `<a href="?nav=stats&review=1" class="cashstrip">
+    <span class="l">🔍 交易復盤</span>
+    <span class="v">最賺／最賠的單筆、報酬率分布、逐年勝率</span>
+    <span class="arrow">›</span></a>`;
+
+  body.innerHTML = summary + reviewStrip + monthlyHtml +
     sec(`💳 交易明細（${s.range_count} 筆）`) + txHtml + moreBtn +
     sec("🏆 個股損益排行（全部歷史）") + `<div class="cardgrid">${rankHtml}</div>` + renderFooter();
 
@@ -1622,7 +1629,7 @@ async function renderTrend() {
   app.innerHTML = subHeader("📈 資產走勢") +
     `<div id="trendBody">${skeletonWithHint(240, "計算歷史市值中…（約 10-20 秒）")}</div>` +
     renderBottomNav("home");
-  document.getElementById("backBtn").addEventListener("click", () => navigateTo("?nav=home"));
+  document.getElementById("backBtn").addEventListener("click", () => goBack("?nav=home"));
 
   await loadTrendBody();
 }
@@ -1679,7 +1686,7 @@ async function renderCash() {
     </div>
     <button type="button" class="btn-submit" data-seg-btn="save-cash" data-value="1">儲存</button>
     <div id="cashMsg"></div>` + renderBottomNav("home");
-  document.getElementById("backBtn").addEventListener("click", () => navigateTo("?nav=home"));
+  document.getElementById("backBtn").addEventListener("click", () => goBack("?nav=home"));
 }
 
 onSeg("save-cash", async () => {
@@ -1717,17 +1724,101 @@ async function renderAbout() {
     ${cards}
     <p class="hint" style="text-align:center;margin-top:16px">※ 所有判斷都是機械式規則計算，不構成投資建議。</p>` +
     renderBottomNav("home");
-  document.getElementById("backBtn").addEventListener("click", () => navigateTo("?nav=home"));
+  document.getElementById("backBtn").addEventListener("click", () => goBack("?nav=home"));
 }
 
 // ------------------------------------------------------------------
 // 📅 股利／財報行事曆（持股＋追蹤清單彙總，依日期排序）
 // ------------------------------------------------------------------
+// ------------------------------------------------------------------
+// 🔍 交易復盤：只看賣出，那才是結算過的一筆
+// ------------------------------------------------------------------
+let reviewData = null;
+
+function reviewRow(r, rank) {
+  const c = colorOf(r.pl_usd);
+  return `<div class="posblock" style="border-left:5px solid ${c}">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+      <span style="min-width:0"><b>${esc(r.symbol)}</b>
+        <span class="sub">　${esc(r.date)}</span></span>
+      <span style="text-align:right;white-space:nowrap">
+        <b style="color:${c}">${mh(r.pl_usd, true)}</b>
+        <span class="chip" style="background:${c}17;color:${c};margin-left:6px">${pctStr(r.pl_pct)}</span>
+      </span>
+    </div>
+  </div>`;
+}
+
+async function renderReview() {
+  const app = document.getElementById("app");
+  app.innerHTML = subHeader("🔍 交易復盤") +
+    `<div id="reviewBody">${skeletonList()}</div>` + renderBottomNav("stats");
+  document.getElementById("backBtn").addEventListener("click", () => goBack("?nav=stats"));
+
+  if (!reviewData) reviewData = await api("/review");
+  const d = reviewData;
+  const body = document.getElementById("reviewBody");
+  if (d.empty) {
+    body.innerHTML = emptyState("🔍", "還沒有賣出紀錄",
+      "賣出之後才有結算過的損益可以復盤。") + renderFooter();
+    return;
+  }
+
+  const o = d.overall;
+  // 盈虧比跟勝率是兩件事：勝率低但盈虧比高一樣會賺，反過來也成立。
+  // 兩個一起看才知道賺錢是靠「常常對」還是靠「對的時候賺很大」。
+  // 五個指標排成同一列。原本拆成「3 張 + 2 張」兩排，但 .statgrid.cols-3 在桌面版
+  // 有 max-width:580px（那是為了個股詳細頁的小卡設的），three 張會擠在左邊、
+  // 右邊空一大塊，跟下面滿寬的兩張並排看起來很不整齊。
+  const head = statGrid([
+    ["勝率", `${o.win_rate}%`, o.win_rate >= 50 ? GREEN : RED],
+    ["盈虧比", o.profit_factor === null ? "—" : `${o.profit_factor}`, o.profit_factor >= 1 ? GREEN : RED],
+    ["已結算", `${o.count} 筆`, GREY],
+    ["平均每筆獲利", mh(o.avg_win, true), GREEN],
+    ["平均每筆虧損", mh(o.avg_loss, true), RED],
+  ]) + `<p class="hint">盈虧比＝總獲利 ÷ 總虧損。大於 1 代表賺的比賠的多，
+        跟勝率是兩回事 —— 勝率低但盈虧比高一樣能賺錢，反過來也成立。</p>`;
+
+  const avg = "";
+
+  // 報酬率分布：用橫條長度表示筆數，不畫圖表，純 CSS 寬度，沒有動畫
+  const maxN = Math.max(...d.distribution.map(x => x.count), 1);
+  const dist = `<div class="mcard" style="padding:14px 16px">` +
+    d.distribution.map(x => {
+      const neg = x.label.startsWith("<") || x.label.startsWith("-");
+      const c = x.count === 0 ? "var(--line)" : (neg ? RED : GREEN);
+      return `<div style="display:flex;align-items:center;gap:10px;margin:5px 0">
+        <span class="sub" style="flex:0 0 76px;text-align:right">${esc(x.label)}</span>
+        <span style="flex:1 1 auto;height:14px;background:var(--card2);border-radius:99px;overflow:hidden">
+          <span style="display:block;height:100%;width:${x.count / maxN * 100}%;background:${c};border-radius:99px"></span>
+        </span>
+        <span class="sub" style="flex:0 0 34px">${x.count}</span>
+      </div>`;
+    }).join("") + `</div>`;
+
+  const years = `<div class="mtable-wrap"><table class="mtable">
+    <thead><tr><th>年度</th><th class="n">筆數</th><th class="n">勝率</th><th class="n">已實現</th></tr></thead>
+    <tbody>${d.by_year.map(y => `<tr>
+      <td>${esc(y.year)}</td><td class="n">${y.count}</td>
+      <td class="n" style="color:${y.win_rate >= 50 ? GREEN : RED};font-weight:800">${y.win_rate}%</td>
+      <td class="n" style="color:${colorOf(y.pl_usd)};font-weight:800">${mh(y.pl_usd, true)}</td>
+    </tr>`).join("")}</tbody></table></div>`;
+
+  body.innerHTML =
+    head + avg +
+    sec("🏅 最賺的 5 筆") + `<div class="cardgrid">${d.best.map(reviewRow).join("")}</div>` +
+    sec("🩹 最賠的 5 筆") + `<div class="cardgrid">${d.worst.map(reviewRow).join("")}</div>` +
+    sec("📐 報酬率分布") + dist +
+    sec("📆 逐年表現") + years +
+    `<p class="hint">只統計「賣出」—— 買進還沒有結果，配息不是一次買賣的成敗。</p>` +
+    renderFooter();
+}
+
 async function renderCalendar() {
   const app = document.getElementById("app");
   app.innerHTML = subHeader("📅 股利／財報行事曆") +
     `<div id="calBody">${skeletonList()}</div>` + renderBottomNav("home");
-  document.getElementById("backBtn").addEventListener("click", () => navigateTo("?nav=home"));
+  document.getElementById("backBtn").addEventListener("click", () => goBack("?nav=home"));
 
   const c = await api("/calendar");
   const body = document.getElementById("calBody");
@@ -2007,7 +2098,18 @@ if ("scrollRestoration" in history) history.scrollRestoration = "manual";
 // key 用完整網址；同一頁不同股票（?nav=hold&sym=VOO）各自記各自的。
 const scrollMemo = new Map();
 
+// 「←」返回鈕原本是用 navigateTo 前進到上一層，那在瀏覽器眼中是「往前一步」，
+// 所以會捲到最上面 —— 但使用者按返回是想回到剛剛看的位置。
+// 只要這個分頁裡確實有我們自己 push 過的紀錄，就走真正的 history.back()，
+// 讓 popstate 去 scrollMemo 把位置還原；否則（例如直接貼網址進來）才退回原本的做法。
+let pushedInApp = 0;
+function goBack(fallbackUrl) {
+  if (pushedInApp > 0) { pushedInApp--; history.back(); }
+  else navigateTo(fallbackUrl);
+}
+
 function navigateTo(url) {
+  pushedInApp++;
   scrollMemo.set(location.href, window.scrollY);   // 先記住現在這一頁停在哪
   history.pushState(null, "", url);
   // 等內容真的畫完才捲 —— 畫完前頁面還是舊的高度，先捲會被瀏覽器夾回去。
@@ -2030,6 +2132,7 @@ async function render() {
   if (qs("trend", null)) return renderTrend();
   if (qs("cash", null)) return renderCash();
   if (qs("cal", null)) return renderCalendar();
+  if (qs("review", null)) return renderReview();
   if (qs("about", null)) return renderAbout();
   const sym = qs("sym", null);
   if (sym) return renderDetail(sym, nav);
@@ -2055,6 +2158,7 @@ async function renderThenPrefetch() {
 function subPageBackTarget() {
   const sym = qs("sym", null);
   if (sym) return `?nav=${qs("nav", "hold")}`;
+  if (qs("review", null)) return "?nav=stats";
   if (qs("trend", null) || qs("cash", null) || qs("cal", null) || qs("about", null)) return "?nav=home";
   return null;
 }
