@@ -893,8 +893,11 @@ async function renderDetail(symbol, fromNav = "hold") {
     ["市值", ks.market_cap ? `$${(ks.market_cap / 1e9).toLocaleString("en-US", { maximumFractionDigits: 0 })}B` : "—", GREY],
     ["Beta（波動度）", ks.beta ? `${ks.beta.toFixed(2)}${ks.beta > 1 ? "（波動大於大盤）" : "（波動小於大盤）"}` : "—", GREY],
     ["50/200日均", `${usdOnly(ks.ma50_usd)} / ${usdOnly(ks.ma200_usd)}`, GREY],
-    ["殖利率", ks.div_yield_pct ? `${ks.div_yield_pct.toFixed(2)}%` : "無配息", GREY],
-    ["每股股利", ks.div_rate_usd ? usdOnly(ks.div_rate_usd) : "—", GREY],
+    // 殖利率與每股股利本來是兩格，但講的是同一件事，拆開反而要左右看兩次。
+    // 併成一格之後總數從 9 變 8，格線剛好排滿（4 欄 × 2 列），不會再空出半列。
+    ["殖利率", ks.div_yield_pct
+      ? `${ks.div_yield_pct.toFixed(2)}%${ks.div_rate_usd ? `<br><span style="font-weight:600;color:var(--sub)">年配 ${usdOnly(ks.div_rate_usd)}</span>` : ""}`
+      : "無配息", GREY],
   ]);
 
   html += sec("📅 重要日期") + statGrid([
@@ -1806,8 +1809,11 @@ async function renderReview() {
     ["勝率", `${o.win_rate}%`, o.win_rate >= 50 ? GREEN : RED],
     ["盈虧比", o.profit_factor === null ? "—" : `${o.profit_factor}`, o.profit_factor >= 1 ? GREEN : RED],
     ["已結算", `${o.count} 筆`, GREY],
-    ["平均每筆獲利", mh(o.avg_win, true), GREEN],
-    ["平均每筆虧損", mh(o.avg_loss, true), RED],
+    // 平均獲利與平均虧損本來就是一對，併成一格。5 格在 1024 寬會排成
+    // 「4 + 1」，第二列孤零零一格；4 格則兩個寬度都剛好一列排滿。
+    ["平均每筆", `<span style="color:${GREEN}">${mh(o.avg_win, true)}</span>`
+      + ` <span style="color:var(--sub);font-weight:600">/</span> `
+      + `<span style="color:${RED}">${mh(o.avg_loss, true)}</span>`, GREY],
   ]) + `<p class="hint">盈虧比＝總獲利 ÷ 總虧損。大於 1 代表賺的比賠的多，
         跟勝率是兩回事 —— 勝率低但盈虧比高一樣能賺錢，反過來也成立。</p>`;
 

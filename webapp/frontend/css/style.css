@@ -708,8 +708,14 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
 
   /* --- 個股詳細頁：數據格排密一點，不要一格一個小數字 --- */
   .statgrid{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
-  .statgrid.cols-3{grid-template-columns:repeat(3,minmax(0,1fr));max-width:580px}
-  .statcardwrap .grid3{grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:18px 16px}
+  /* 這裡原本有 max-width:580px，導致「重要日期」「更多技術訊號」這種三格區塊
+     只佔內容區（1137px）的一半、靠左擺，右邊空一大塊，跟頁面其他滿寬的區塊
+     擺在一起很不整齊。拿掉之後三格平均分配，每格約 379px 也不會太寬。 */
+  .statgrid.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+  /* 關鍵數據固定 4 欄：共 8 格，剛好兩列排滿。
+     原本是 auto-fit minmax(160px)，在 1137px 寬會排成 6 欄，9 格變成「6 + 3」，
+     最後一列空掉一半，看起來像沒做完。 */
+  .statcardwrap .grid3{grid-template-columns:repeat(4,minmax(0,1fr));gap:18px 16px}
   /* 報價卡原本 225px 高、價格 2.5rem，在 1137px 寬的卡片裡偏空。 */
   .detail-hero{padding:20px 26px}
   .detail-hero-price{font-size:2.1rem}
