@@ -18,7 +18,12 @@
 </head>
 <body>
 <div id="app"><div class="loading">載入中…</div></div>
+<!-- 載入順序有意義：core 先定義常數與共用工具，各頁面檔案接著註冊自己的
+     事件處理，app.js 最後才啟動路由（它結尾會呼叫 renderThenPrefetch）。 -->
 <script src="js/chart.js"></script>
+<script src="js/core.js"></script>
+<script src="js/pages-portfolio.js"></script>
+<script src="js/pages-reports.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

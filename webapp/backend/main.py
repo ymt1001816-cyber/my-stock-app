@@ -1172,13 +1172,13 @@ def _asset_version(*names):
 def index():
     with open(os.path.join(FRONTEND_DIR, "index.html"), encoding="utf-8") as f:
         html = f.read()
-    v_css = _asset_version("css/style.css")
-    v_chart = _asset_version("js/chart.js")
-    v_app = _asset_version("js/app.js")
-    html = (html
-            .replace('href="css/style.css"', f'href="css/style.css?v={v_css}"')
-            .replace('src="js/chart.js"', f'src="js/chart.js?v={v_chart}"')
-            .replace('src="js/app.js"', f'src="js/app.js?v={v_app}"'))
+    # 前端 JS 已拆成多個檔案，全部都要蓋上版本戳，否則改了某一支卻沒換網址，
+    # 瀏覽器會繼續用舊的快取。新增檔案時記得加進這個清單。
+    assets = ["css/style.css", "js/chart.js", "js/core.js",
+              "js/pages-portfolio.js", "js/pages-reports.js", "js/app.js"]
+    for a in assets:
+        attr = "href" if a.endswith(".css") else "src"
+        html = html.replace(f'{attr}="{a}"', f'{attr}="{a}?v={_asset_version(a)}"')
     return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
 
 
