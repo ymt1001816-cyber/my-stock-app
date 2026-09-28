@@ -468,6 +468,13 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
 .rank-row.up{border-left-color:var(--green,#18a558)}
 .rank-row.down{border-left-color:var(--red,#e0405a)}
 
+/* 冷啟動時先顯示上次的快照，用這條提示使用者「這不是最新的，正在更新」。
+   刻意用橘色底而不是灰色 —— 灰色會被當成普通說明文字忽略掉，而這裡必須
+   讓人注意到數字還不是最新的。無動畫、無 transform。 */
+.stalebar{background:#fdf1e0;border:1px solid #f2d3a3;color:#9a6512;
+  border-radius:var(--r-md);padding:9px 14px;margin:0 0 10px;
+  font-size:.8rem;font-weight:700}
+
 .btn-more{display:block;width:100%;margin:2px 0 10px;padding:10px 12px;
   border:none;border-top:1px solid var(--line);border-radius:0 0 var(--r-md) var(--r-md);
   background:transparent;color:var(--sub);font-size:.8rem;font-weight:700;

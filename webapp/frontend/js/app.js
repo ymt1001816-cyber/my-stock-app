@@ -295,6 +295,7 @@ async function loadSummary(force = false) {
   if (!force && summaryCache && Date.now() - summaryAt < SUMMARY_TTL_MS) return summaryCache;
   summaryCache = await api("/summary");
   summaryAt = Date.now();
+  saveSnap("summary", summaryCache);
   return summaryCache;
 }
 
@@ -305,11 +306,25 @@ async function renderHome() {
   app.innerHTML = renderHeader("🏠 投資總覽", aboutBtn) + `<div id="homeBody">${skeletonHome()}</div>` + renderBottomNav("home");
   bindHeaderEvents();
 
+  // 冷啟動時 /api/summary 要 6 秒（服務還睡著的話再加 50 秒）。有上次的快照
+  // 就先把畫面填起來，標明是快照並正在更新，不要讓使用者對著骨架屏發呆。
+  if (!summaryCache) {
+    const snap = loadSnap("summary");
+    if (snap) renderHomeBody(snap.data, snap.at);
+  }
+
   const s = await loadSummary();
+  renderHomeBody(s, null);
+}
+
+// staleAt 有值時，在最上面加一條「這是幾點的快照」提示。
+function renderHomeBody(s, staleAt) {
   const body = document.getElementById("homeBody");
+  if (!body) return;
+  const bar = staleAt ? staleBanner(staleAt) : "";
 
   if (s.empty) {
-    body.innerHTML = emptyState("📊", "還沒有持股資料",
+    body.innerHTML = bar + emptyState("📊", "還沒有持股資料",
       "到「📦 我的持股」新增你目前持有的股票，只需要代號、股數、平均成本。") + renderFooter();
     return;
   }
@@ -385,7 +400,7 @@ async function renderHome() {
 
   // .home-top / .home-cols 在手機上是 display:contents（等於不存在，排版跟以前一模一樣），
   // 桌面版才變成格線容器：上方數字卡並排、下方「資產配置」與「提醒」左右兩欄。
-  body.innerHTML =
+  body.innerHTML = bar +
     `<div class="home-top">${hero}${smallCards}${cashStrip}${calStrip}` +
     `<div class="hint">👉 <b>點資產總額看資產走勢</b>　·　<b>點可用資金設定金額</b></div></div>` +
     `<div class="home-cols"><div class="home-col">${allocHtml}</div>` +
@@ -444,6 +459,40 @@ function sheetMarkup(panelId, backdropId) {
 // ------------------------------------------------------------------
 // 📦 我的持股：清單頁
 // ------------------------------------------------------------------
+// 線上版跑在 Render 免費方案，閒置就休眠，實測喚醒整台服務要 50 秒以上，
+// 醒來之後快取是空的，/api/summary 與 /api/watchlist 各還要再 6 秒。
+// 這段期間畫面上只有骨架屏，等於盯著空白發呆一分鐘。
+//
+// 改成：把上一次成功拿到的資料存一份在 localStorage，下次開啟先把它畫出來，
+// 並明確標示「這是幾點幾分的快照，正在更新」，新資料一到就整批換掉。
+// 只是把等待期填上內容，不改變任何計算 —— 顯示的仍然是真實存在過的數字。
+const SNAP_PREFIX = "snap:";
+const SNAP_MAX_AGE_MS = 24 * 3600 * 1000;   // 超過一天的快照就不要拿出來了
+
+function saveSnap(key, data) {
+  try { localStorage.setItem(SNAP_PREFIX + key, JSON.stringify({ at: Date.now(), data })); }
+  catch { /* 容量滿或無痕模式，忽略 */ }
+}
+function loadSnap(key) {
+  try {
+    const raw = localStorage.getItem(SNAP_PREFIX + key);
+    if (!raw) return null;
+    const o = JSON.parse(raw);
+    if (!o || !o.data || Date.now() - o.at > SNAP_MAX_AGE_MS) return null;
+    return o;
+  } catch { return null; }
+}
+function snapAgeText(at) {
+  const min = Math.round((Date.now() - at) / 60000);
+  if (min < 1) return "剛剛";
+  if (min < 60) return `${min} 分鐘前`;
+  const hr = Math.round(min / 60);
+  return hr < 24 ? `${hr} 小時前` : "超過一天前";
+}
+function staleBanner(at) {
+  return `<div class="stalebar">上次看到的資料（${snapAgeText(at)}）　·　正在更新…</div>`;
+}
+
 let holdData = null;
 // 排序選擇存起來：電腦上常常來回切頁，每次都跳回預設很煩。
 // 存錯值（例如舊版本留下的 key）也不會壞，下面排序是 if/else 鏈，最後一支是預設。
@@ -682,6 +731,7 @@ async function loadHoldData(force = false) {
   if (force || !holdData) {
     const [hd] = await Promise.all([api("/holdings"), loadSymbols()]);
     holdData = hd;
+    saveSnap("holdings", hd);
   }
 }
 
@@ -730,6 +780,19 @@ async function renderHoldList() {
     addOpen = false;
     toggleSheet("addTxPanel", "addTxBackdrop", false);
   });
+
+  // 同首頁：先畫上次的快照，再等真正的資料。rerenderHoldBody 讀的是模組變數，
+  // 所以暫時指派過去畫完再還原，讓下面的 loadHoldData 真的會去抓。
+  if (!holdData) {
+    const snap = loadSnap("holdings");
+    if (snap) {
+      holdData = snap.data;
+      rerenderHoldBody(true);
+      const b = document.getElementById("holdBody");
+      if (b) b.insertAdjacentHTML("afterbegin", staleBanner(snap.at));
+      holdData = null;
+    }
+  }
 
   await loadHoldData();
   rerenderHoldBody(true);
@@ -1101,7 +1164,7 @@ function targetGap(w) {
 }
 
 async function loadWatchData() {
-  if (!watchData) watchData = await api("/watchlist");
+  if (!watchData) { watchData = await api("/watchlist"); saveSnap("watchlist", watchData); }
 }
 
 function rerenderWatchBody(animate = false) {
@@ -1330,6 +1393,17 @@ async function renderWatchList() {
     watchOpen = false;
     toggleSheet("addWatchPanel", "addWatchBackdrop", false);
   });
+
+  if (!watchData) {
+    const snap = loadSnap("watchlist");
+    if (snap) {
+      watchData = snap.data;
+      rerenderWatchBody(true);
+      const b = document.getElementById("watchBody");
+      if (b) b.insertAdjacentHTML("afterbegin", staleBanner(snap.at));
+      watchData = null;
+    }
+  }
 
   await loadWatchData();
   rerenderWatchBody(true);
