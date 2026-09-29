@@ -737,6 +737,12 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
     border-left:1px solid var(--line);padding-left:26px}
   .statsummary .v{font-size:1.45rem}
 
+  /* 三格區間（當月／今年／近 90 天）在 1024 寬只排得下兩欄，第三格會落單佔半排、
+     右邊空一塊。落單時讓它跨滿整列，版面才不會缺一角。
+     :nth-child(3):last-child 正好只命中「剛好三格」的情況，全部區間只有兩格
+     不受影響。 */
+  .statsummary .row:nth-child(3):last-child{grid-column:1 / -1}
+
   /* 背景光暈固定住，捲動時像一張穩定的桌面，而不是跟著內容跑的貼圖。
      只在桌面套用：iOS Safari 的 background-attachment:fixed 有已知問題。
 

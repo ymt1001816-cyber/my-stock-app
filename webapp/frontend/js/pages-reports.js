@@ -72,7 +72,12 @@ function rerenderStatsBody() {
   const s = statsCache[statsPeriod];
   if (!s || !body) return;
   const periodLabel = { all: "全部", month: "當月", ytd: "今年", "90d": "近 90 天", custom: "自訂" }[statsPeriod];
-  const rpct = s.range_pl_pct !== null ? `（${s.range_pl_pct >= 0 ? "+" : ""}${s.range_pl_pct.toFixed(2)}%）` : "";
+  // 報酬率原本塞在副標裡，變成「當月　·　40 筆交易　·　報酬率 +16.13%」一長串。
+  // 三格區間時每格只有 345px，三件事擠一行根本讀不出來。改成數值旁邊的 chip，
+  // 跟 App 其他地方顯示百分比的做法一致，也更好掃。
+  const rpctChip = s.range_pl_pct === null ? "" :
+    (c => `<span class="chip" style="background:${c}17;color:${c};margin-left:8px;vertical-align:middle">`
+        + `${s.range_pl_pct >= 0 ? "+" : ""}${s.range_pl_pct.toFixed(2)}%</span>`)(colorOf(s.range_pl_pct));
   // 勝率：選「全部」時上面兩格會是同一個數字（區間＝全部歷史），兩張大卡顯示
   // 一樣的值很浪費。中間補一格勝率，任何區間都有資訊量。
   const sells = s.transactions.filter(t => t.type === "賣出");
@@ -92,13 +97,13 @@ function rerenderStatsBody() {
     <div class="row"><div>
       <div class="l">累計已實現損益</div>
       <div class="v" style="color:${colorOf(s.total_pl_all_usd)}">${mh(s.total_pl_all_usd, true)}</div>
-      <div class="s">全部歷史　·　含所有區間</div>
+      <div class="s">全部歷史</div>
     </div></div>`;
   const summary = `<div class="statsummary">
     <div class="row"><div>
-      <div class="l">${isAll ? "已實現損益" : "區間已實現損益"}</div>
-      <div class="v" style="color:${colorOf(s.range_pl_usd)}">${mh(s.range_pl_usd, true)}</div>
-      <div class="s">${isAll ? "全部歷史" : periodLabel}　·　${s.range_count} 筆交易${rpct ? `　·　報酬率 ${rpct.replace(/[（）]/g, "")}` : ""}</div>
+      <div class="l">${isAll ? "已實現損益" : `${periodLabel}已實現損益`}</div>
+      <div class="v" style="color:${colorOf(s.range_pl_usd)}">${mh(s.range_pl_usd, true)}${rpctChip}</div>
+            <div class="s">${s.range_count} 筆交易</div>
     </div></div>
     ${winCell}
     ${totalCell}</div>`;
