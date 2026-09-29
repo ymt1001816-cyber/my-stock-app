@@ -236,6 +236,15 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
    持股看累計賺賠，追蹤清單看當日漲跌（由 app.js 掛 tone-up / tone-down）。 */
 .hitem.tone-up{border-left:3px solid rgba(24,165,88,.5)}
 .hitem.tone-down{border-left:3px solid rgba(224,64,90,.45)}
+/* 追蹤清單不要這條依當日漲跌上色的邊條 —— 當日漲跌右邊已經有帶顏色的百分比，
+   左邊再來一條紅的只是讓整排看起來在警示什麼。持股頁保留（那條看的是累計賺賠）。
+   改成只有「可考慮進場」的那幾檔才標綠邊，紅色完全不出現。 */
+.watch-row-wrap .hitem.tone-up,
+.watch-row-wrap .hitem.tone-down{border-left-color:transparent}
+.watch-row-wrap.can-buy .hitem{border-left:3px solid var(--green)}
+/* 副標一律壓成一行。理由已經縮短過，這是最後一道保險 —— 只要有一列換行，
+   整個格線就會高低不齊。 */
+.watch-row-wrap .hitem .sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* 持股列中間欄（現價／今日漲跌）：手機沒空間先藏起來，桌面才顯示 */
 .hitem-mid{display:none}

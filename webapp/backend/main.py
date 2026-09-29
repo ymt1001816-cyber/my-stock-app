@@ -669,9 +669,14 @@ def get_watchlist():
     symbols = [w["symbol"] for w in recs]
     # 報價跟走勢圖 sparkline 兩批互相獨立，跟持股清單一樣同時平行跑，不要一批做完才做下一批。
     with ThreadPoolExecutor(max_workers=2) as outer_ex:
+        # 這裡原本用 get_light。但 analyze_watch 要靠五個訊號評分，而 get_light
+        # 沒有 recommend 與 target_mean 兩個欄位，加上 rsi 一直寫死傳 None ——
+        # 五個訊號裡有三個永遠不會觸發，分數最高只有 1，而「可考慮進場」需要 3。
+        # 也就是說追蹤清單的核心判斷從來沒有真正運作過。改用 get_quote 拿齊欄位，
+        # 它已經被 warm_cache 預熱，暖機後不會比較慢（實測見 commit 說明）。
         quotes_f = outer_ex.submit(
-            lambda: list(ThreadPoolExecutor(max_workers=min(3, len(recs))).map(
-                lambda w: mk.get_light(w["symbol"]), recs)))
+            lambda: list(ThreadPoolExecutor(max_workers=min(6, len(recs))).map(
+                lambda w: mk.get_quote(w["symbol"]), recs)))
         charts_f = outer_ex.submit(
             lambda: list(ThreadPoolExecutor(max_workers=min(8, len(symbols))).map(
                 lambda s: mk.get_chart(s, period="1mo", interval="1d"), symbols)))
@@ -681,15 +686,28 @@ def get_watchlist():
     # 沒濾掉的話這個 NaN 會一路傳到 JSON 序列化那一步直接讓整個 API 500。
     sparks = {s: ([] if ch.empty else [round(float(v), 4) for v in ch["Close"].dropna().tolist()])
               for s, ch in zip(symbols, charts)}
+    # RSI 直接從上面已經抓好的走勢圖算，不用再多打一次網路。
+    # 1 個月日線約 21 根，RSI(14) 算得出來；資料不足就給 None，那個訊號自然不計分。
+    rsis = {}
+    for sym, ch in zip(symbols, charts):
+        try:
+            closes = ch["Close"].dropna() if not ch.empty else None
+            rsis[sym] = mk.rsi(closes) if closes is not None and len(closes) >= 15 else None
+        except Exception:
+            rsis[sym] = None
+
     rows = []
     for w, q in zip(recs, quotes):
         tb = w.get("target_buy")
         tb = float(tb) if pd.notna(tb) else None
-        v = an.analyze_watch(q, tb, None)
+        v = an.analyze_watch(q, tb, rsis.get(w["symbol"]))
         rows.append({
             "symbol": w["symbol"], "target_buy_usd": tb, "note": w.get("note") or "",
             "price_usd": q["price"], "day_pct": q["change_pct"],
             "emoji": v["emoji"], "label": v["label"],
+            # 分數與理由一起送到前端：清單上要標出「現在可以下手」的是哪幾檔，
+            # 光有一個標籤看不出憑什麼，點進去之前先讓人看到理由。
+            "score": v["score"], "reasons": v["reasons"],
             "spark": sparks.get(w["symbol"], []),
         })
     return {"empty": False, "rows": rows}

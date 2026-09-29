@@ -29,7 +29,12 @@ async function loadSymbols() {
 }
 
 function stockRowHtml(r, navKey = "hold", idx = 0, animate = false) {
-  const sub = r._sub !== undefined ? r._sub :
+  // _subHtml：副標需要放粗體、顏色這類標記時用它（例如追蹤清單的「可進場」徽章）。
+  // 它不會再經過 esc()，所以呼叫端必須自己把所有動態內容 esc 過才傳進來。
+  // 三種情況：_subHtml（自訂 HTML）、_sub（自訂純文字）、都沒有才用持股的預設格式。
+  // 少判斷 _subHtml 的話，追蹤清單會掉進預設分支去算 weight_pct.toFixed()，
+  // 而它傳進來的 shares/weight_pct 是 null，整頁會直接壞掉。
+  const sub = r._subHtml !== undefined ? "" : r._sub !== undefined ? r._sub :
     `${r.shares % 1 === 0 ? r.shares : r.shares.toFixed(5)} 股 · 佔比 ${r.weight_pct.toFixed(1)}%`;
   // 持股列表看的是「賺賠多少」，不是當天股價；追蹤清單沒有成本，才顯示現價/當日漲跌。
   const hasPl = r.pl_usd !== undefined;
@@ -68,7 +73,7 @@ function stockRowHtml(r, navKey = "hold", idx = 0, animate = false) {
         <div class="hitem-logo">${logoImg(r.symbol)}</div>
         <div class="hitem-name">
           <div class="nm">${r.emoji} ${esc(r.symbol)}</div>
-          <div class="sub">${esc(sub)}</div>
+          <div class="sub">${r._subHtml !== undefined ? r._subHtml : esc(sub)}</div>
         </div>
       </div>
       ${mid}
@@ -718,12 +723,34 @@ function rerenderWatchBody(animate = false) {
 
 function watchRowHtml(w, idx = 0, animate = false) {
   const gap = targetGap(w);
-  const sub = w.label + (gap === null ? "" :
+  // score >= 3 是「可考慮進場」。清單上要一眼看得出現在哪幾檔可以下手，
+  // 所以除了標籤之外，再把最關鍵的理由寫在後面 —— 光一句「可考慮進場」
+  // 看不出憑什麼，總得知道是因為便宜、趨勢好、還是分析師看好。
+  const canBuy = (w.score || 0) >= 3;
+  // 理由要壓在一行內 —— 副標換行會讓「可進場」那幾列變成 106px、其他 80px，
+  // 排成格線高低不齊很難看。所以只取最關鍵的一個，而且再縮短一次用字。
+  const SHORTEN = [
+    [/^分析師：/, "分析師看好"], [/^多頭排列.*/, "多頭排列"],
+    [/^距目標價\s*([+\-\d]+%).*/, "空間 $1"], [/^RSI\s*(\d+).*/, "RSI $1 偏低"],
+    [/^已跌到你的目標買價.*/, "已到目標買價"],
+  ];
+  const why = (w.reasons || [])
+    .filter(r => r.startsWith("🟢") || r.startsWith("🔵"))   // 只留正面訊號
+    .map(r => { let t = r.slice(2).trim();
+      for (const [re, to] of SHORTEN) if (re.test(t)) return t.replace(re, to);
+      return t.split("，")[0]; })
+    .slice(0, 1).join("");
+  const badge = canBuy
+    // 這裡不要用 class="sub" —— 它會跟外層的 .sub 一起吃到 overflow:hidden，
+    // 內聯元素加了 overflow 行為會變怪，徽章跟理由會被拆成兩行。
+    ? `<b style="color:${GREEN}">可進場</b>${why ? `<span style="color:var(--sub)"> · ${esc(why)}</span>` : ""}`
+    : esc(w.label);
+  const sub = badge + (gap === null ? "" :
     gap <= 0 ? ` · 🎯 到價 ${usdOnly(w.target_buy_usd)}`
              : ` · 目標 ${usdOnly(w.target_buy_usd)}，差 ${(gap * 100).toFixed(1)}%`);
   const row = stockRowHtml({ symbol: w.symbol, shares: null, weight_pct: null, price_usd: w.price_usd,
-    day_pct: w.day_pct, emoji: w.emoji, spark: w.spark, _sub: sub }, "watch", idx, animate);
-  return `<div class="watch-row-wrap" data-symbol="${esc(w.symbol)}">
+    day_pct: w.day_pct, emoji: w.emoji, spark: w.spark, _subHtml: sub }, "watch", idx, animate);
+  return `<div class="watch-row-wrap${canBuy ? " can-buy" : ""}" data-symbol="${esc(w.symbol)}">
     <div class="watch-row-delete-bg">🗑 移除</div>
     <div class="watch-row-content">${row}</div>
   </div>`;
