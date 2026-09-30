@@ -690,12 +690,24 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
      持股列多了「現價／今日漲跌」之後內容變多，每欄至少要 420px 才排得下
      logo＋代號＋股數佔比＋現價＋走勢圖＋損益，不然「N 股 · 佔比 X%」
      會被擠成三行。 --- */
-  .cardgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));
-    gap:0 16px;align-items:start}
+  /* auto-fill 而不是 auto-fit —— auto-fit 會把空軌道收掉、讓卡片撐大，
+     所以同一頁裡「賺錢的 5 檔」排成 3 欄 368px、「賠錢的 2 檔」卻撐成 2 欄 560px，
+     同一個區塊兩組卡片大小不一樣，看起來就像版面跑掉。
+     auto-fill 保留軌道、卡片不撐大，不管幾項都是同一個寬度。 */
+  /* grid 每一列各自依該列最高的項目決定高度，所以同一區塊裡會出現 70px 與 90px
+     並排（台股已實現）、106px 與 83px（簡報）這種高低不齊。
+     grid-auto-rows:1fr 讓所有列等高，卡片就會齊。 */
+  .cardgrid{display:grid;grid-auto-rows:1fr;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));
+    gap:0 16px;align-items:stretch}
+  /* align-items 從 start 改成 stretch：grid-auto-rows:1fr 只讓「列」等高，
+     卡片本身若不伸展就還是停在自己的內容高度 —— 台股那組列高 104px、
+     卡片卻是 70px 與 90px 並排。stretch 才會真的把卡片撐到跟列一樣高。 */
   .cardgrid>*{min-width:0}
   /* 交易明細、損益排行、行事曆、簡報卡沒有中間欄，不需要那麼寬 */
-  #statsRest .cardgrid,#calBody .cardgrid,#briefBody .cardgrid,#twBody .cardgrid{
-    grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+  /* 復盤頁原本沒列進來，卡片是 560px，跟統計頁同性質的 368px 對不起來。 */
+  #statsRest .cardgrid,#calBody .cardgrid,#briefBody .cardgrid,#twBody .cardgrid,
+  #reviewBody .cardgrid{
+    grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}
 
   /* 交易明細卡片在桌面上是 368px 寬、塞三行，內距只有 12px 顯得很擠
      （實測沒有文字被裁，純粹是密度問題）。上下各多 3px、分隔線前後各多 2px，
